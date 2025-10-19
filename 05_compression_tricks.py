@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 3: Compressing the Columns - Specialized Encodings
+Phase 5: Compression Tricks - Specialized Time-Series Algorithms
 
 This script applies aggressive compression techniques to columnar data,
 using specialized encodings for timestamps and values.
@@ -226,9 +226,9 @@ def store_compressed_data(compressed_data: Dict[str, Any], output_file: str) -> 
     return os.path.getsize(output_file)
 
 def main():
-    """Main function to execute Phase 3."""
+    """Main function to execute Phase 5."""
     print("=" * 60)
-    print("Phase 3: Compressed Columnar Storage")
+    print("Phase 5: Compression Tricks")
     print("=" * 60)
     
     # Load the columnar data from Phase 2
@@ -288,7 +288,7 @@ def main():
     print(f"    - Opaque format requiring specialized tools")
     print(f"    - Space-vs-time trade-off")
     
-    print(f"\n✅ Phase 3 completed successfully!")
+    print(f"\n✅ Phase 5 completed successfully!")
     
     return {
         "format": "Compressed Columnar",

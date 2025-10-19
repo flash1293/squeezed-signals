@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Phase 2: Going Columnar - Grouping by Series
+Phase 4: Going Columnar - Grouping by Series
 
-This script restructures data from rows to columns by grouping data points
-by time series (metric name + labels). This is the most important conceptual shift.
+Instead of storing one JSON object per data point, this approach groups all data points
+for the same time series together, storing timestamps and values in arrays.
+This dramatically reduces redundancy.
 """
 
 import os
@@ -160,9 +161,9 @@ def verify_columnar_data(columnar_data: Dict[str, Any]) -> None:
     print(f"  Total data points verified: {total_points:,}")
 
 def main():
-    """Main function to execute Phase 2."""
+    """Main function to execute Phase 4."""
     print("=" * 60)
-    print("Phase 2: Columnar Storage - Grouping by Series")
+    print("Phase 4: Columnar Storage - Grouping by Series")
     print("=" * 60)
     
     # Load the generated dataset
@@ -219,7 +220,7 @@ def main():
     print(f"    - Not streamable (need to rewrite entire file for new data)")
     print(f"    - Requires specialized tools to inspect")
     
-    print(f"\n✅ Phase 2 completed successfully!")
+    print(f"\n✅ Phase 4 completed successfully!")
     
     return {
         "format": "Columnar (MessagePack)",

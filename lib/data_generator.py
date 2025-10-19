@@ -232,3 +232,18 @@ def print_data_stats(data_points: List[Dict[str, Any]]) -> None:
     print(f"  Metric: {sample['metric_name']}")
     print(f"  Value: {sample['value']:.2f}")
     print(f"  Labels: {sample['labels']}")
+
+
+def load_dataset():
+    """Load the generated dataset from the output directory."""
+    import pickle
+    from pathlib import Path
+    
+    dataset_file = Path("output/raw_dataset.pkl")
+    if not dataset_file.exists():
+        raise FileNotFoundError(f"Dataset file not found: {dataset_file}. Please run 00_generate_data.py first.")
+    
+    with open(dataset_file, 'rb') as f:
+        data_points = pickle.load(f)
+    
+    return data_points

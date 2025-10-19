@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 5: Losing Precision for Longevity - Downsampling
+Phase 6: Losing Precision for Longevity - Downsampling
 
 This script demonstrates how to reduce data volume for long-term storage
 by aggregating high-resolution data into lower-resolution "rollups".
@@ -327,9 +327,9 @@ def demonstrate_query_efficiency(original_data: List[Dict[str, Any]], downsample
             print(f"  {interval}s downsampled: {len(cpu_ds_metrics):,} points ({reduction_ratio:.1f}x fewer)")
 
 def main():
-    """Main function to execute Phase 5."""
+    """Main function to execute Phase 6."""
     print("=" * 60)
-    print("Phase 5: Downsampling for Long-term Storage")
+    print("Phase 6: Downsampling for Long-term Storage")
     print("=" * 60)
     
     # Load original dataset
@@ -392,7 +392,7 @@ def main():
     print(f"    - Complex retention policy management")
     print(f"    - Cannot recover original high-resolution data")
     
-    print(f"\n✅ Phase 5 completed successfully!")
+    print(f"\n✅ Phase 6 completed successfully!")
     
     return {
         "format": "Downsampled (Multiple Intervals)",

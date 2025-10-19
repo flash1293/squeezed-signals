@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 1.5: Binary Table Format - Denormalized but Efficient
+Phase 3: Binary Table Format - String Deduplication and Fixed-Width Encoding
 
 This script stores data in a binary table format that eliminates key repetition
 but maintains row-based (denormalized) structure. This represents an intermediate
@@ -230,9 +230,9 @@ def analyze_binary_table_benefits(original_data: List[Dict[str, Any]], binary_si
     print(f"    Bytes per data point: {bytes_per_point:.2f}")
 
 def main():
-    """Main function to execute Phase 1.5."""
+    """Main function to execute Phase 3."""
     print("=" * 60)
-    print("Phase 1.5: Binary Table Format - Denormalized but Efficient")
+    print("Phase 3: Binary Table Format")
     print("=" * 60)
     
     # Load the generated dataset
@@ -322,7 +322,7 @@ def main():
     print(f"    - Still denormalized (metadata repeated)")
     print(f"    - String table lookup overhead")
     
-    print(f"\n✅ Phase 1.5 completed successfully!")
+    print(f"\n✅ Phase 3 completed successfully!")
     
     return {
         "format": "Binary Table",

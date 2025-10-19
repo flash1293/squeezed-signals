@@ -82,11 +82,11 @@ def collect_file_sizes() -> Dict[str, int]:
     output_files = {
         "raw_dataset.pkl": "Raw Dataset (Pickle)",
         "metrics.ndjson": "Phase 1: NDJSON",
-        "metrics.ndjson.zst": "Phase 1: NDJSON (zstd)",
-        "metrics.bintable.bin": "Phase 1.5: Binary Table",
-        "metrics.columnar.msgpack": "Phase 2: Columnar",
-        "metrics.compressed.msgpack": "Phase 3: Compressed",
-        "metrics.final.tsdb": "Phase 4: Custom Binary",
+        "metrics.cbor": "Phase 2: CBOR",
+        "metrics.bintable.bin": "Phase 3: Binary Table",
+        "metrics.columnar.msgpack": "Phase 4: Columnar",
+        "metrics.compressed.msgpack": "Phase 5: Compression Tricks",
+        "metrics.ndjson.zst": "Phase 7: NDJSON (zstd)",
     }
     
     file_sizes = {}
@@ -101,7 +101,7 @@ def collect_file_sizes() -> Dict[str, int]:
         if filename.startswith("metrics.downsampled.") and filename.endswith(".msgpack"):
             filepath = os.path.join("output", filename)
             interval = filename.replace("metrics.downsampled.", "").replace(".msgpack", "")
-            description = f"Phase 5: Downsampled ({interval})"
+            description = f"Phase 6: Downsampled ({interval})"
             file_sizes[description] = os.path.getsize(filepath)
     
     return file_sizes
@@ -180,10 +180,12 @@ def print_comprehensive_summary(phase_results: List[Dict[str, Any]], file_sizes:
     # Data journey summary
     print(f"\n🛤️  The Data Journey:")
     print(f"  1️⃣  Started with human-readable JSON - easy to debug but massively inefficient")
-    print(f"  2️⃣  Restructured to columnar format - eliminated metadata repetition")
-    print(f"  3️⃣  Applied specialized compression - leveraged data patterns for huge gains")
-    print(f"  4️⃣  Created self-contained binary format - production-ready structure")
-    print(f"  5️⃣  Added downsampling - essential for long-term retention at scale")
+    print(f"  2️⃣  Added CBOR encoding - better binary serialization of same structure")
+    print(f"  3️⃣  Created binary table format - eliminated string repetition via deduplication")
+    print(f"  4️⃣  Restructured to columnar format - eliminated metadata repetition completely")
+    print(f"  5️⃣  Applied specialized compression - leveraged temporal data patterns")
+    print(f"  6️⃣  Added downsampling - essential for long-term retention at scale")
+    print(f"  7️⃣  Compared general-purpose compression - showing zstd's effectiveness")
     
     # Real-world implications
     print(f"\n🌍 Real-world Implications:")
@@ -233,11 +235,12 @@ def main():
     phases = [
         (0, "Data Generation", "00_generate_data.py"),
         (1, "Baseline NDJSON Storage", "01_ndjson_storage.py"),
-        (1.5, "Binary Table Format", "01_5_binary_table.py"),
-        (2, "Columnar Storage", "02_columnar_storage.py"),
-        (3, "Compressed Columnar", "03_compressed_columnar.py"),
-        (4, "Custom Binary Format", "04_custom_binary_format.py"),
-        (5, "Downsampling Storage", "05_downsampling_storage.py"),
+        (2, "CBOR Storage", "02_cbor_storage.py"),
+        (3, "Binary Table Format", "03_binary_table.py"),
+        (4, "Columnar Storage", "04_columnar_storage.py"),
+        (5, "Compression Tricks", "05_compression_tricks.py"),
+        (6, "Downsampling Storage", "06_downsampling_storage.py"),
+        (7, "General-Purpose Compression", "07_general_compression.py"),
     ]
     
     phase_results = []

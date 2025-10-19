@@ -8,13 +8,20 @@ This serves as our baseline for comparison - it's human-readable but extremely i
 
 import json
 import os
-import pickle
-import zstandard as zstd
+import sys
+import time
+from pathlib import Path
 from typing import List, Dict, Any
 
-def store_as_ndjson_compressed(data_points: List[Dict[str, Any]], output_file: str) -> int:
+# Add lib directory to path for imports
+lib_path = Path(__file__).parent / "lib"
+sys.path.insert(0, str(lib_path))
+
+from data_generator import load_dataset
+
+def store_as_ndjson(data_points: List[Dict[str, Any]], output_file: str) -> int:
     """
-    Store data points as zstd-compressed NDJSON.
+    Store data points as newline-delimited JSON (NDJSON).
     
     Args:
         data_points: List of data point dictionaries
@@ -23,16 +30,13 @@ def store_as_ndjson_compressed(data_points: List[Dict[str, Any]], output_file: s
     Returns:
         File size in bytes
     """
-    print(f"Writing {len(data_points):,} data points to zstd-compressed NDJSON format...")
+    print(f"Writing {len(data_points):,} data points to NDJSON format...")
     
-    # Create compressor
-    cctx = zstd.ZstdCompressor(level=3)  # Level 3 is a good balance of speed vs compression
-    
-    with open(output_file, "wb") as f:
-        with cctx.stream_writer(f) as compressor:
-            for point in data_points:
-                json_line = json.dumps(point, separators=(',', ':')) + '\n'
-                compressor.write(json_line.encode('utf-8'))
+    with open(output_file, "w") as f:
+        for point in data_points:
+            # Use compact JSON representation (no spaces)
+            json_line = json.dumps(point, separators=(',', ':'))
+            f.write(json_line + '\n')
     
     return os.path.getsize(output_file)
 
@@ -108,35 +112,26 @@ def main():
     print("Phase 1: Baseline - Denormalized NDJSON Storage")
     print("=" * 60)
     
-    # Load the generated dataset
-    raw_data_file = "output/raw_dataset.pkl"
-    if not os.path.exists(raw_data_file):
-        print(f"❌ Error: {raw_data_file} not found. Please run 00_generate_data.py first.")
-        return
+    # Load the dataset
+    try:
+        data_points = load_dataset()
+        print(f"Loaded {len(data_points):,} data points from dataset")
+    except Exception as e:
+        print(f"❌ Error loading dataset: {e}")
+        return 1
     
-    with open(raw_data_file, "rb") as f:
-        data_points = pickle.load(f)
-    
-    print(f"Loaded {len(data_points):,} data points from dataset")
+    # Create output directory
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
     
     # Store as NDJSON
-    output_file = "output/metrics.ndjson"
+    output_file = output_dir / "metrics.ndjson"
     file_size = store_as_ndjson(data_points, output_file)
-    
-    # Store as zstd-compressed NDJSON
-    compressed_output_file = "output/metrics.ndjson.zst"
-    compressed_file_size = store_as_ndjson_compressed(data_points, compressed_output_file)
 
     print(f"\n📊 NDJSON Storage Results:")
     print(f"  Output file: {output_file}")
     print(f"  File size: {file_size:,} bytes ({file_size / 1024 / 1024:.2f} MB)")
     print(f"  Bytes per data point: {file_size / len(data_points):.2f}")
-    
-    print(f"\n📊 Compressed NDJSON (zstd) Results:")
-    print(f"  Output file: {compressed_output_file}")
-    print(f"  File size: {compressed_file_size:,} bytes ({compressed_file_size / 1024 / 1024:.2f} MB)")
-    print(f"  Bytes per data point: {compressed_file_size / len(data_points):.2f}")
-    print(f"  Compression ratio vs raw NDJSON: {file_size / compressed_file_size:.2f}x")
     
     # Analyze inefficiencies
     analyze_ndjson_inefficiency(data_points)
@@ -153,14 +148,17 @@ def main():
     print(f"    - No compression of repeated data")
     
     print(f"\n✅ Phase 1 completed successfully!")
-    
-    return {
-        "format": "NDJSON",
-        "file_size": file_size,
-        "compressed_file_size": compressed_file_size,
-        "compression_ratio": 1.0,  # Baseline
-        "data_points": len(data_points)
-    }
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    start_time = time.time()
+    result = main()
+    end_time = time.time()
+    
+    if result == 0:
+        print(f"\n✅ Phase 1 completed in {end_time - start_time:.2f} seconds")
+    else:
+        print(f"\n❌ Phase 1 failed after {end_time - start_time:.2f} seconds")
+    
+    sys.exit(result)
