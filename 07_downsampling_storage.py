@@ -374,7 +374,7 @@ def main():
         return 1
     
     # Define downsampling intervals (in seconds)
-    intervals = [60, 300, 900, 3600]  # 1min, 5min, 15min, 1hour
+    intervals = [300, 900, 3600]  # 5min, 15min, 1hour
     
     print(f"Downsampling at intervals: {[f'{i}s' for i in intervals]}")
     

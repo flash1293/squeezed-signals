@@ -80,7 +80,6 @@ def run_phase(phase_number: int, phase_name: str, script_name: str) -> Dict[str,
 def collect_file_sizes() -> Dict[str, int]:
     """Collect file sizes from all output files."""
     output_files = {
-        "raw_dataset.pkl": "Raw Dataset (Pickle)",
         "metrics.ndjson": "Phase 1: NDJSON",
         "metrics.cbor": "Phase 2: CBOR",
         "metrics.cbor.zst": "Phase 3: CBOR + zstd",
