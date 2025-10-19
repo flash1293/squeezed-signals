@@ -63,6 +63,7 @@ Uses actual performance monitoring data from the [Westermo test-system-performan
 - **Authentic Patterns**: Real system metrics from production environments
 - **Diverse Metrics**: CPU, memory, disk, network, and system load data
 - **Natural Irregularities**: Actual timestamp patterns and value distributions
+- **Smart Caching**: Generated datasets are cached to speed up subsequent runs
 
 ```bash
 # Use real monitoring data
@@ -71,6 +72,9 @@ DATA_GENERATOR=real python main.py --size small
 # Control dataset size (both generators)
 DATASET_SIZE=small   # ~50,000 points
 DATASET_SIZE=big     # ~500,000 points
+
+# Cache management (automatic, per generator+size combination)
+rm output/raw_dataset.pkl  # Force regeneration
 ```
 - **Platform Stability**: Well-managed services show reduced random variation
 

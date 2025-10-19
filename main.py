@@ -176,42 +176,6 @@ def print_comprehensive_summary(phase_results: List[Dict[str, Any]], file_sizes:
     if baseline_size and downsampled_total > 0:
         total_reduction = baseline_size / downsampled_total
         print(f"  📉 Long-term storage efficiency: {total_reduction:.1f}x with downsampling")
-    
-    # Data journey summary
-    print(f"\n🛤️  The Data Journey:")
-    print(f"  1️⃣  Started with human-readable JSON - easy to debug but massively inefficient")
-    print(f"  2️⃣  Added CBOR encoding - better binary serialization of same structure")
-    print(f"  3️⃣  Created binary table format - eliminated string repetition via deduplication")
-    print(f"  4️⃣  Restructured to columnar format - eliminated metadata repetition completely")
-    print(f"  5️⃣  Applied specialized compression - leveraged temporal data patterns")
-    print(f"  6️⃣  Added downsampling - essential for long-term retention at scale")
-    print(f"  7️⃣  Compared general-purpose compression - showing zstd's effectiveness")
-    
-    # Real-world implications
-    print(f"\n🌍 Real-world Implications:")
-    
-    if baseline_size > 0:
-        # Extrapolate to realistic scale
-        daily_data_gb = (baseline_size / (1024**3)) * (86400 / 15) * 1000  # Assume 15s intervals, scale to 1000 series
-        
-        print(f"  📈 Scaling to production (1000 series, 1 day):")
-        print(f"    Raw NDJSON: ~{daily_data_gb:.1f} GB/day")
-        
-        for desc, size in file_sizes.items():
-            if "Custom Binary" in desc:
-                compressed_daily = daily_data_gb * (size / baseline_size)
-                print(f"    Compressed: ~{compressed_daily:.2f} GB/day ({daily_data_gb/compressed_daily:.0f}x reduction)")
-            elif "Total Downsampled" in desc or downsampled_total > 0:
-                ds_daily = daily_data_gb * (downsampled_total / baseline_size)
-                annual_ds = ds_daily * 365
-                print(f"    Downsampled: ~{ds_daily:.3f} GB/day (~{annual_ds:.1f} GB/year)")
-    
-    print(f"\n🎯 Production Recommendations:")
-    print(f"  • Use columnar compression for high-resolution recent data (hours to days)")
-    print(f"  • Implement automatic downsampling for medium-term storage (days to months)")
-    print(f"  • Keep only essential aggregates for long-term retention (months to years)")
-    print(f"  • Monitor compression ratios - they indicate data pattern health")
-    print(f"  • Consider tiered storage: SSD for recent, HDD for historical")
 
 def main():
     """Main function to orchestrate all phases."""
