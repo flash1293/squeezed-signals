@@ -154,19 +154,6 @@ def main():
     print(f"  File size: {file_size:,} bytes ({file_size / (1024*1024):.2f} MB)")
     print(f"  Bytes per data point: {bytes_per_point:.2f}")
     
-    print(f"\n💡 zstd CBOR Compression Characteristics:")
-    print(f"  ✅ Pros:")
-    print(f"    - Excellent compression with minimal code changes")
-    print(f"    - Industry standard zstd compression")
-    print(f"    - Combines CBOR structure with compression")
-    print(f"    - Fast compression and decompression")
-    print(f"    - Maintains CBOR benefits (binary, typed)")
-    print(f"  ❌ Cons:")
-    print(f"    - Requires decompression for any data access")
-    print(f"    - Still preserves underlying redundancy")
-    print(f"    - Not human-readable or inspectable")
-    print(f"    - Need zstd library for access")
-    
     print(f"\n✅ Phase 3 completed successfully!")
     return 0
 

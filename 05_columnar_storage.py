@@ -234,19 +234,6 @@ def main():
         print(f"  Columnar + zstd size: {file_size:,} bytes")
         print(f"  Ratio: {vs_bintable:.2f}x {'better' if vs_bintable > 1 else 'worse'}")
     
-    print(f"\n💡 Columnar + zstd Characteristics:")
-    print(f"  ✅ Pros:")
-    print(f"    - Eliminates key repetition completely")
-    print(f"    - Groups related data together for compression")
-    print(f"    - zstd provides additional space savings")
-    print(f"    - Faster queries for single series")
-    print(f"    - Good balance of structure and compression")
-    print(f"  ❌ Cons:")
-    print(f"    - Not human-readable")
-    print(f"    - Requires decompression for access")
-    print(f"    - Not streamable (need full rewrite for new data)")
-    print(f"    - Requires specialized tools and decompression")
-    
     print(f"\n✅ Phase 5 completed successfully!")
     
     return {

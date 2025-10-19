@@ -410,19 +410,6 @@ def main():
         bytes_per_point = size / points if points > 0 else 0
         print(f"    {interval}s: {size:,} bytes ({points:,} points, {bytes_per_point:.2f} bytes/point)")
     
-    print(f"\n💡 Downsampling Characteristics:")
-    print(f"  ✅ Pros:")
-    print(f"    - Dramatic data reduction for long-term storage")
-    print(f"    - Much faster queries over long time ranges")
-    print(f"    - Multiple aggregates preserve different views")
-    print(f"    - Essential for cost-effective retention")
-    print(f"    - Enables hierarchical storage management")
-    print(f"  ❌ Cons:")
-    print(f"    - Lossy process - fine-grained details are lost")
-    print(f"    - Need multiple aggregates to retain outlier visibility")
-    print(f"    - Complex retention policy management")
-    print(f"    - Cannot recover original high-resolution data")
-    
     print(f"\n✅ Phase 7 completed successfully!")
     
     return {

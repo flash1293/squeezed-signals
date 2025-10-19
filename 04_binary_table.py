@@ -319,19 +319,6 @@ def main():
         print(f"  Binary table + zstd size: {file_size:,} bytes")
         print(f"  Ratio: {vs_cbor_zst:.2f}x {'better' if vs_cbor_zst > 1 else 'worse'}")
     
-    print(f"\n💡 Binary Table + zstd Characteristics:")
-    print(f"  ✅ Pros:")
-    print(f"    - Eliminates string repetition via string table")
-    print(f"    - Fixed-width fields for predictable parsing")
-    print(f"    - Additional compression via zstd")
-    print(f"    - Good balance of structure and compression")
-    print(f"    - zstd provides fast decompression")
-    print(f"  ❌ Cons:")
-    print(f"    - Not human-readable")
-    print(f"    - Requires custom parser + decompression")
-    print(f"    - Still denormalized (metadata repeated)")
-    print(f"    - Need to decompress for any access")
-    
     print(f"\n✅ Phase 4 completed successfully!")
     
     return {

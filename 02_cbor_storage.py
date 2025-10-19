@@ -136,20 +136,6 @@ def main():
     print(f"  File size: {file_size:,} bytes ({file_size / (1024*1024):.2f} MB)")
     print(f"  Bytes per data point: {bytes_per_point:.2f}")
     
-    print(f"\n💡 CBOR Format Characteristics:")
-    print(f"  ✅ Pros:")
-    print(f"    - More efficient than JSON (binary encoding)")
-    print(f"    - Preserves data types (integers, floats, strings)")
-    print(f"    - Standardized format (RFC 7049)")
-    print(f"    - Self-describing and schema-less")
-    print(f"    - Faster parsing than JSON")
-    print(f"    - Smaller than JSON due to binary encoding")
-    print(f"  ❌ Cons:")
-    print(f"    - Not human-readable")
-    print(f"    - Still denormalized (same redundancy as JSON)")
-    print(f"    - Requires CBOR library to read")
-    print(f"    - No compression of repeated keys/values")
-    
     print(f"\n✅ Phase 2 completed successfully!")
     return 0
 

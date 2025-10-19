@@ -336,19 +336,6 @@ def main():
         columnar_compression = columnar_size / file_size
         print(f"  vs Columnar: {columnar_compression:.2f}x compression ({columnar_size:,} → {file_size:,} bytes)")
     
-    print(f"\n💡 Compression Tricks + zstd Characteristics:")
-    print(f"  ✅ Pros:")
-    print(f"    - Ultimate compression combining specialized + general-purpose algorithms")
-    print(f"    - Leverages data patterns (regular intervals, similar values)")
-    print(f"    - Additional zstd compression on optimized data")
-    print(f"    - Still preserves full fidelity")
-    print(f"    - Best of both worlds approach")
-    print(f"  ❌ Cons:")
-    print(f"    - High computational cost for encode/decode")
-    print(f"    - Very complex implementation")
-    print(f"    - Double compression overhead")
-    print(f"    - Requires specialized tools and decompression")
-    
     print(f"\n✅ Phase 6 completed successfully!")
     
     return {

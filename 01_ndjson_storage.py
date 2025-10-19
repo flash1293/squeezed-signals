@@ -136,17 +136,6 @@ def main():
     # Analyze inefficiencies
     analyze_ndjson_inefficiency(data_points)
     
-    print(f"\n💡 NDJSON Characteristics:")
-    print(f"  ✅ Pros:")
-    print(f"    - Human readable")
-    print(f"    - Easy to debug with standard tools (grep, jq, awk)")
-    print(f"    - Streamable and appendable")
-    print(f"    - No custom parser needed")
-    print(f"  ❌ Cons:")
-    print(f"    - Massive redundancy in keys and values")
-    print(f"    - Inefficient text representation of numbers")
-    print(f"    - No compression of repeated data")
-    
     print(f"\n✅ Phase 1 completed successfully!")
     return 0
 

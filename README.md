@@ -85,12 +85,16 @@ rm output/raw_dataset.pkl  # Force regeneration
 
 ## 🛤️ The Evolution Journey
 
-## 📖 Technical Deep Dives
+## 📖 Technical Documentation
 
-- [Data Generation Deep Dive](docs/data-generation-deep-dive.md) - How realistic patterns enhance compression
-- [Phase 3: Binary Table Deep Dive](docs/phase3-binary-table-deep-dive.md) - String deduplication and fixed-width encoding
-- [Phase 5: Compression Tricks Deep Dive](docs/phase5-compression-deep-dive.md) - Temporal algorithms and bit-level optimization  
-- [Phase 6: Downsampling Deep Dive](docs/phase6-downsampling-deep-dive.md) - Multi-resolution storage strategies
+### Complete Phase Analysis
+- [Phase 1: NDJSON Characteristics](docs/phase1-ndjson-characteristics.md) - Baseline format analysis
+- [Phase 2: CBOR Characteristics](docs/phase2-cbor-characteristics.md) - Binary serialization benefits
+- [Phase 3: CBOR + zstd Characteristics](docs/phase3-cbor-zstd-characteristics.md) - General-purpose compression
+- [Phase 4: Binary Table + zstd Characteristics](docs/phase4-binary-table-zstd-characteristics.md) - Structural optimization + compression
+- [Phase 5: Columnar Storage + zstd Characteristics](docs/phase5-columnar-storage-zstd-characteristics.md) - Data organization optimization
+- [Phase 6: Compression Tricks + zstd Characteristics](docs/phase6-compression-tricks-zstd-characteristics.md) - Specialized algorithms + compression
+- [Phase 7: Downsampling + zstd Characteristics](docs/phase7-downsampling-zstd-characteristics.md) - Multi-resolution storage
 
 ## 🔍 Phase Details
 
@@ -101,19 +105,30 @@ rm output/raw_dataset.pkl  # Force regeneration
 - ✅ Human readable, debuggable
 - ❌ Massive key repetition, inefficient numbers
 
+📖 **[Full Analysis: NDJSON Characteristics](docs/phase1-ndjson-characteristics.md)**
+
 ### Phase 2: CBOR Encoding
 - ✅ Binary format, preserves structure
 - ✅ Better type encoding (integers, floats)
 - ❌ Still denormalized with repeated metadata
 
-### Phase 3: Binary Table Format
-- ✅ String deduplication (8,658x+ compression on strings!)
+📖 **[Full Analysis: CBOR Characteristics](docs/phase2-cbor-characteristics.md)**
+
+### Phase 3: CBOR + zstd Compression
+- ✅ Excellent compression with minimal code changes
+- ✅ Industry standard zstd compression  
+- ❌ Still preserves underlying redundancy
+
+📖 **[Full Analysis: CBOR + zstd Characteristics](docs/phase3-cbor-zstd-characteristics.md)**
+
+### Phase 4: Binary Table + zstd
+- ✅ String deduplication (91,932x+ compression on strings!)
 - ✅ Fixed-width binary encoding for fast parsing
-- ❌ Still row-based structure
+- ❌ Still denormalized structure
 
-📖 **[Technical Deep Dive: Binary Table Format](docs/phase3-binary-table-deep-dive.md)**
+📖 **[Complete Analysis: Binary Table + zstd](docs/phase4-binary-table-zstd-characteristics.md)**
 
-### Phase 4: Columnar Storage
+### Phase 5: Columnar Storage + zstd
 ```python
 {
   "cpu_usage": {
@@ -124,30 +139,28 @@ rm output/raw_dataset.pkl  # Force regeneration
 }
 ```
 - ✅ Eliminates metadata repetition completely
-- ✅ Enables column-specific optimizations
-- ❌ Requires custom parsing
+- ✅ Groups related data for optimal compression
+- ❌ Requires decompression for access
 
-### Phase 5: Compression Tricks
-- ✅ Delta-delta encoding for regular timestamps (4.08x compression)
-- ✅ Adaptive XOR/delta compression for values (1.21x compression)
-- ✅ Bit-level optimization with leading zero compression
-- ❌ Computational complexity
+📖 **[Complete Analysis: Columnar Storage + zstd](docs/phase5-columnar-storage-zstd-characteristics.md)**
 
-📖 **[Technical Deep Dive: Compression Tricks](docs/phase5-compression-tricks-deep-dive.md)**
+### Phase 6: Compression Tricks + zstd
+- ✅ Specialized algorithms for time-series patterns
+- ✅ Adaptive XOR/delta compression selection per series
+- ✅ Additional zstd compression on optimized data
+- ❌ High computational complexity
 
-### Phase 6: Downsampling
-- ✅ Essential for long-term retention
-- ✅ Multiple aggregation levels (1m, 5m, 15m, 1h)
-- ✅ Huge space savings for historical data
-- ❌ Lossy compression
+📖 **[Complete Analysis: Compression Tricks + zstd](docs/phase6-compression-tricks-zstd-characteristics.md)**
 
-📖 **[Technical Deep Dive: Downsampling Storage](docs/phase6-downsampling-deep-dive.md)**
+### Phase 7: Downsampling + zstd
+- ✅ Multi-resolution storage for long-term retention
+- ✅ Dramatic data reduction (up to 96.7% fewer points)
+- ✅ Fast queries over long time ranges
+- ❌ Lossy compression (precision loss)
 
-### Phase 7: General-Purpose Compression (zstd)
-- ✅ Excellent compression with no code changes
-- ✅ Industry standard, battle-tested
-- ✅ Can compete with specialized techniques
-- ❌ Requires decompression for any access
+📖 **[Complete Analysis: Downsampling + zstd](docs/phase7-downsampling-zstd-characteristics.md)**
+
+
 
 ## 🔧 Configuration Options
 
@@ -175,20 +188,26 @@ squeezed-signals/
 ├── lib/
 │   ├── data_generator.py         # Realistic data patterns
 │   └── encoders.py              # Compression algorithms
-├── docs/                         # Technical deep dives
-│   ├── phase3-binary-table-deep-dive.md
-│   ├── phase5-compression-tricks-deep-dive.md
-│   └── phase6-downsampling-deep-dive.md
+├── docs/                         # Technical documentation
+│   ├── data-generation-deep-dive.md
+│   ├── phase1-ndjson-characteristics.md
+│   ├── phase2-cbor-characteristics.md  
+│   ├── phase3-cbor-zstd-characteristics.md
+│   ├── phase4-binary-table-zstd-characteristics.md
+│   ├── phase5-columnar-storage-zstd-characteristics.md
+│   ├── phase6-compression-tricks-zstd-characteristics.md
+│   └── phase7-downsampling-zstd-characteristics.md
 └── output/                       # Generated files
 ```
 
-## 📚 Technical Documentation
+## 📚 Complete Documentation
 
-For detailed technical explanations of the compression algorithms:
+The project includes comprehensive documentation for each phase:
 
-- **[Phase 3: Binary Table Deep Dive](docs/phase3-binary-table-deep-dive.md)** - String deduplication and fixed-width encoding
-- **[Phase 5: Compression Tricks Deep Dive](docs/phase5-compression-tricks-deep-dive.md)** - XOR compression, delta encoding, and bit-level optimization
-- **[Phase 6: Downsampling Deep Dive](docs/phase6-downsampling-deep-dive.md)** - Multi-resolution storage and hierarchical retention
+Each phase includes comprehensive documentation combining technical implementation details with performance analysis, pros/cons, and real-world applications:
+
+- **[Data Generation Deep Dive](docs/data-generation-deep-dive.md)** - How realistic patterns enhance compression
+- **[Complete Phase Documentation](docs/)** - All phase characteristics with algorithm implementation details
 
 ## 🎛️ Data Generation Features
 
