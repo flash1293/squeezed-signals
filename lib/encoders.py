@@ -10,32 +10,48 @@ from typing import List, Tuple, Union
 
 # Bit manipulation helpers for compressed encoding
 
-def _write_bits(data: bytearray, value: int, num_bits: int) -> None:
-    """Write bits to a bytearray, maintaining bit-level precision."""
-    if not hasattr(_write_bits, 'bit_buffer'):
-        _write_bits.bit_buffer = 0
-        _write_bits.bits_in_buffer = 0
+class _BitWriter:
+    """Helper class for writing bits to compressed data."""
     
-    # Add value to bit buffer
-    _write_bits.bit_buffer = (_write_bits.bit_buffer << num_bits) | value
-    _write_bits.bits_in_buffer += num_bits
+    def __init__(self):
+        self.data = bytearray()
+        self.bit_buffer = 0
+        self.bits_in_buffer = 0
     
-    # Write complete bytes to data
-    while _write_bits.bits_in_buffer >= 8:
-        _write_bits.bits_in_buffer -= 8
-        byte_value = (_write_bits.bit_buffer >> _write_bits.bits_in_buffer) & 0xFF
-        data.append(byte_value)
-        _write_bits.bit_buffer &= (1 << _write_bits.bits_in_buffer) - 1
-
-def _flush_bits(data: bytearray) -> None:
-    """Flush remaining bits in buffer to data."""
-    if hasattr(_write_bits, 'bits_in_buffer') and _write_bits.bits_in_buffer > 0:
-        # Pad with zeros and write final byte
-        remaining_bits = 8 - _write_bits.bits_in_buffer
-        _write_bits.bit_buffer <<= remaining_bits
-        data.append(_write_bits.bit_buffer & 0xFF)
-        _write_bits.bit_buffer = 0
-        _write_bits.bits_in_buffer = 0
+    def write_bits(self, value: int, num_bits: int) -> None:
+        """Write bits to the output."""
+        if num_bits == 0:
+            return
+        
+        # Mask value to ensure it fits in num_bits
+        value &= (1 << num_bits) - 1
+        
+        # Add value to bit buffer
+        self.bit_buffer = (self.bit_buffer << num_bits) | value
+        self.bits_in_buffer += num_bits
+        
+        # Write complete bytes to data
+        while self.bits_in_buffer >= 8:
+            self.bits_in_buffer -= 8
+            byte_value = (self.bit_buffer >> self.bits_in_buffer) & 0xFF
+            self.data.append(byte_value)
+            # Clear the written bits
+            self.bit_buffer &= (1 << self.bits_in_buffer) - 1
+    
+    def flush(self) -> bytes:
+        """Flush remaining bits and return the compressed data."""
+        if self.bits_in_buffer > 0:
+            # Pad with zeros and write final byte
+            remaining_bits = 8 - self.bits_in_buffer
+            self.bit_buffer <<= remaining_bits
+            self.data.append(self.bit_buffer & 0xFF)
+        
+        result = bytes(self.data)
+        # Reset for next use
+        self.data = bytearray()
+        self.bit_buffer = 0
+        self.bits_in_buffer = 0
+        return result
 
 def _count_leading_zeros(value: int) -> int:
     """Count leading zeros in a 64-bit integer."""
@@ -172,12 +188,8 @@ def xor_encode_floats(values: List[float]) -> Tuple[float, bytes]:
     if len(values) == 1:
         return values[0], b''
     
-    # Reset bit buffer for new encoding
-    _write_bits.bit_buffer = 0
-    _write_bits.bits_in_buffer = 0
-    
     first_value = values[0]
-    compressed_data = bytearray()
+    writer = _BitWriter()
     
     prev_bits = struct.unpack('>Q', struct.pack('>d', values[0]))[0]
     
@@ -187,10 +199,10 @@ def xor_encode_floats(values: List[float]) -> Tuple[float, bytes]:
         
         if xor_value == 0:
             # Perfect match - store single bit '0'
-            _write_bits(compressed_data, 0, 1)
+            writer.write_bits(0, 1)
         else:
             # Non-zero XOR - store '1' + leading zeros + significant bits
-            _write_bits(compressed_data, 1, 1)
+            writer.write_bits(1, 1)
             
             # Count leading and trailing zeros
             leading_zeros = _count_leading_zeros(xor_value)
@@ -198,27 +210,30 @@ def xor_encode_floats(values: List[float]) -> Tuple[float, bytes]:
             
             # Significant bits (remove leading and trailing zeros)
             significant_bits = 64 - leading_zeros - trailing_zeros
+            if significant_bits <= 0:
+                significant_bits = 1
+                leading_zeros = 63
+                trailing_zeros = 0
+            
             significant_value = xor_value >> trailing_zeros
             
             # Store: leading_zeros (6 bits) + significant_bits_count (6 bits) + significant_bits
-            _write_bits(compressed_data, leading_zeros, 6)
-            _write_bits(compressed_data, significant_bits, 6)
-            _write_bits(compressed_data, significant_value, significant_bits)
+            writer.write_bits(leading_zeros, 6)
+            writer.write_bits(significant_bits, 6)
+            writer.write_bits(significant_value, significant_bits)
         
         prev_bits = current_bits
     
-    # Flush any remaining bits
-    _flush_bits(compressed_data)
-    
-    return first_value, bytes(compressed_data)
+    return first_value, writer.flush()
 
-def xor_decode_floats(first_value: float, compressed_data: bytes) -> List[float]:
+def xor_decode_floats(first_value: float, compressed_data: bytes, target_count: int = None) -> List[float]:
     """
     Decode XOR encoded float values from compressed bit data.
     
     Args:
         first_value: The first float value
         compressed_data: Compressed XOR data as bytes
+        target_count: Expected number of values to decode (optional)
         
     Returns:
         List of decoded float values
@@ -233,7 +248,8 @@ def xor_decode_floats(first_value: float, compressed_data: bytes) -> List[float]
     bit_reader = _BitReader(compressed_data)
     
     try:
-        while bit_reader.has_bits():
+        # Keep reading until we run out of bits or reach target count
+        while bit_reader.has_bits(1) and (target_count is None or len(values) < target_count):
             # Read control bit
             control_bit = bit_reader.read_bits(1)
             
@@ -241,18 +257,33 @@ def xor_decode_floats(first_value: float, compressed_data: bytes) -> List[float]
                 # Perfect match - XOR value is 0
                 xor_value = 0
             else:
+                # Need at least 12 more bits (6 + 6) for metadata
+                if not bit_reader.has_bits(12):
+                    break
+                
                 # Read leading zeros (6 bits) and significant bits count (6 bits)
                 leading_zeros = bit_reader.read_bits(6)
                 significant_bits = bit_reader.read_bits(6)
                 
                 if significant_bits == 0:
                     xor_value = 0
+                elif significant_bits > 64:
+                    # Invalid data, stop reading
+                    break
                 else:
+                    # Check if we have enough bits for the significant value
+                    if not bit_reader.has_bits(significant_bits):
+                        break
+                    
                     # Read significant value
                     significant_value = bit_reader.read_bits(significant_bits)
                     
                     # Reconstruct XOR value
                     trailing_zeros = 64 - leading_zeros - significant_bits
+                    if trailing_zeros < 0:
+                        # Invalid data, stop reading
+                        break
+                    
                     xor_value = significant_value << trailing_zeros
             
             # Decode value
@@ -261,8 +292,8 @@ def xor_decode_floats(first_value: float, compressed_data: bytes) -> List[float]
             values.append(current_value)
             prev_bits = current_bits
     
-    except Exception:
-        # If we run out of bits or encounter an error, we're done
+    except (ValueError, struct.error):
+        # If we encounter an error, stop reading
         pass
     
     return values
@@ -275,29 +306,34 @@ class _BitReader:
         self.byte_pos = 0
         self.bit_pos = 0
     
-    def has_bits(self) -> bool:
-        """Check if there are more bits to read."""
-        return self.byte_pos < len(self.data)
+    def has_bits(self, num_bits: int = 1) -> bool:
+        """Check if there are enough bits available to read."""
+        total_bits_available = (len(self.data) - self.byte_pos) * 8 - self.bit_pos
+        return total_bits_available >= num_bits
     
     def read_bits(self, num_bits: int) -> int:
         """Read specified number of bits."""
         if num_bits == 0:
             return 0
         
+        if not self.has_bits(num_bits):
+            raise ValueError(f"Not enough bits available: need {num_bits}, have {(len(self.data) - self.byte_pos) * 8 - self.bit_pos}")
+        
         result = 0
         bits_read = 0
         
-        while bits_read < num_bits and self.has_bits():
+        while bits_read < num_bits:
             # Get current byte
             current_byte = self.data[self.byte_pos]
             
             # Calculate how many bits we can read from current byte
-            bits_available = 8 - self.bit_pos
-            bits_to_read = min(num_bits - bits_read, bits_available)
+            bits_available_in_byte = 8 - self.bit_pos
+            bits_to_read = min(num_bits - bits_read, bits_available_in_byte)
             
-            # Extract bits
-            mask = ((1 << bits_to_read) - 1) << (bits_available - bits_to_read)
-            bits = (current_byte & mask) >> (bits_available - bits_to_read)
+            # Extract bits from the left side of the byte (MSB first)
+            shift = bits_available_in_byte - bits_to_read
+            mask = ((1 << bits_to_read) - 1) << shift
+            bits = (current_byte & mask) >> shift
             
             # Add to result
             result = (result << bits_to_read) | bits
@@ -344,19 +380,15 @@ def _compress_float_deltas(deltas: List[float]) -> bytes:
     if not deltas:
         return b''
     
-    # Reset bit buffer for new encoding
-    _write_bits.bit_buffer = 0
-    _write_bits.bits_in_buffer = 0
-    
-    compressed_data = bytearray()
+    writer = _BitWriter()
     
     for delta in deltas:
         if delta == 0.0:
             # Zero delta - store single bit '0'
-            _write_bits(compressed_data, 0, 1)
+            writer.write_bits(0, 1)
         else:
             # Non-zero delta - store '1' + compressed float
-            _write_bits(compressed_data, 1, 1)
+            writer.write_bits(1, 1)
             
             # Convert to bytes and compress
             delta_bytes = struct.pack('>d', delta)
@@ -385,25 +417,51 @@ def _compress_float_deltas(deltas: List[float]) -> bytes:
                 trailing_zero_bytes = 0
             
             # Store: leading_zero_bytes (3 bits) + significant_bytes_count (3 bits) + significant_data
-            _write_bits(compressed_data, leading_zero_bytes, 3)
-            _write_bits(compressed_data, significant_bytes, 3)
+            writer.write_bits(leading_zero_bytes, 3)
+            writer.write_bits(significant_bytes, 3)
             
             # Store significant bytes
             for i in range(leading_zero_bytes, 8 - trailing_zero_bytes):
-                _write_bits(compressed_data, delta_bytes[i], 8)
+                writer.write_bits(delta_bytes[i], 8)
     
-    # Flush remaining bits
-    _flush_bits(compressed_data)
-    
-    return bytes(compressed_data)
+    return writer.flush()
 
-def simple_delta_decode_floats(first_value: float, compressed_data: bytes) -> List[float]:
+def simple_delta_encode_floats(values: List[float]) -> Tuple[float, bytes]:
+    """
+    Delta encoding with variable-length compression for float values.
+    
+    Args:
+        values: List of float values
+        
+    Returns:
+        Tuple of (first_value, compressed_delta_data)
+    """
+    if not values:
+        return 0.0, b''
+    
+    if len(values) == 1:
+        return values[0], b''
+    
+    first_value = values[0]
+    deltas = []
+    
+    for i in range(1, len(values)):
+        delta = values[i] - values[i-1]
+        deltas.append(delta)
+    
+    # Compress deltas using variable-length encoding
+    compressed_data = _compress_float_deltas(deltas)
+    
+    return first_value, compressed_data
+
+def simple_delta_decode_floats(first_value: float, compressed_data: bytes, target_count: int = None) -> List[float]:
     """
     Decode delta encoded float values from compressed data.
     
     Args:
         first_value: The first float value
         compressed_data: Compressed delta data as bytes
+        target_count: Expected number of values to decode (optional)
         
     Returns:
         List of decoded float values
@@ -418,7 +476,8 @@ def simple_delta_decode_floats(first_value: float, compressed_data: bytes) -> Li
     bit_reader = _BitReader(compressed_data)
     
     try:
-        while bit_reader.has_bits():
+        # Keep reading until we run out of bits or reach target count
+        while bit_reader.has_bits(1) and (target_count is None or len(values) < target_count):
             # Read control bit
             control_bit = bit_reader.read_bits(1)
             
@@ -426,9 +485,21 @@ def simple_delta_decode_floats(first_value: float, compressed_data: bytes) -> Li
                 # Zero delta
                 delta = 0.0
             else:
+                # Need at least 6 more bits (3 + 3) for metadata
+                if not bit_reader.has_bits(6):
+                    break
+                
                 # Read leading zero bytes (3 bits) and significant bytes count (3 bits)
                 leading_zero_bytes = bit_reader.read_bits(3)
                 significant_bytes = bit_reader.read_bits(3)
+                
+                if significant_bytes == 0 or significant_bytes > 8:
+                    # Invalid data, stop reading
+                    break
+                
+                # Check if we have enough bits for the significant bytes
+                if not bit_reader.has_bits(significant_bytes * 8):
+                    break
                 
                 # Reconstruct delta bytes
                 delta_bytes = bytearray(8)
@@ -439,14 +510,18 @@ def simple_delta_decode_floats(first_value: float, compressed_data: bytes) -> Li
                         delta_bytes[i] = bit_reader.read_bits(8)
                 
                 # Convert back to float
-                delta = struct.unpack('>d', bytes(delta_bytes))[0]
+                try:
+                    delta = struct.unpack('>d', bytes(delta_bytes))[0]
+                except struct.error:
+                    # Invalid float data, stop reading
+                    break
             
             # Add delta to get next value
             current_value += delta
             values.append(current_value)
     
-    except Exception:
-        # If we run out of bits or encounter an error, we're done
+    except (ValueError, struct.error):
+        # If we encounter an error, stop reading
         pass
     
     return values

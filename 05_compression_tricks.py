@@ -94,6 +94,7 @@ def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
                     "method": "xor",
                     "first_value": first_value,
                     "compressed_data": xor_compressed,
+                    "expected_count": len(values),
                     "size": len(xor_compressed)
                 }
             except Exception as e:
@@ -105,6 +106,7 @@ def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
                     "method": "delta",
                     "first_value": first_value,
                     "compressed_data": delta_compressed,
+                    "expected_count": len(values),
                     "size": len(delta_compressed)
                 }
             except Exception as e:
@@ -130,6 +132,7 @@ def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
                     "method": "uncompressed",
                     "first_value": values[0] if values else 0.0,
                     "compressed_data": b'',
+                    "expected_count": len(values),
                     "size": len(values) * 8
                 }
                 print(f"    Using uncompressed fallback: {compressed_values['size']} bytes")
@@ -142,7 +145,7 @@ def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
             compression_stats["compressed_values_bytes"] += compressed_val_bytes
             
         else:
-            compressed_values = {"method": "empty", "first_value": 0.0, "compressed_data": b'', "size": 0}
+            compressed_values = {"method": "empty", "first_value": 0.0, "compressed_data": b'', "expected_count": 0, "size": 0}
         
         compressed_series_data[series_id] = {
             "timestamps": compressed_timestamps,
@@ -220,10 +223,12 @@ def verify_compressed_data(original_data: Dict[str, Any], compressed_data: Dict[
         # Verify values
         try:
             val_data = compressed["values"]
+            expected_count = val_data.get("expected_count", 0)
+            
             if val_data["method"] == "xor":
-                decoded_values = xor_decode_floats(val_data["first_value"], val_data["compressed_data"])
+                decoded_values = xor_decode_floats(val_data["first_value"], val_data["compressed_data"], expected_count)
             elif val_data["method"] == "delta":
-                decoded_values = simple_delta_decode_floats(val_data["first_value"], val_data["compressed_data"])
+                decoded_values = simple_delta_decode_floats(val_data["first_value"], val_data["compressed_data"], expected_count)
             elif val_data["method"] == "uncompressed":
                 decoded_values = [val_data["first_value"]] if val_data["first_value"] != 0.0 else []
             else:
