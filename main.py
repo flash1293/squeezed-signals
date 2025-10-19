@@ -85,7 +85,7 @@ def collect_file_sizes() -> Dict[str, int]:
         "metrics.cbor.zst": "Phase 3: CBOR + zstd",
         "metrics.bintable.zst": "Phase 4: Binary Table + zstd",
         "metrics.columnar.zst": "Phase 5: Columnar + zstd", 
-        "metrics.compressed.zst": "Phase 6: Compression Tricks + zstd",
+        "metrics.enhanced_compressed.zst": "Phase 6: Compression Tricks + zstd",
     }
     
     file_sizes = {}

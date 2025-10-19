@@ -459,14 +459,14 @@ def main():
         print(f"❌ Error: {compressed_file} not found. Please run 06_compression_tricks.py first.")
         return
     
-    # For simplicity of demonstration, we'll use the original data for downsampling
-    # but apply Phase 5's compression techniques to the downsampled results
+    # Load the same dataset that other phases use (from the pickle file)
     print("Loading original dataset for downsampling (will apply Phase 6 compression to results)...")
     
-    # Load original dataset for downsampling
+    # Load original dataset for downsampling (same as other phases)
     try:
-        from lib.data_generator import load_dataset
-        original_data = load_dataset()
+        import pickle
+        with open("output/raw_dataset.pkl", "rb") as f:
+            original_data = pickle.load(f)
         print(f"Loaded {len(original_data):,} data points for downsampling")
     except Exception as e:
         print(f"❌ Error loading dataset: {e}")
