@@ -210,7 +210,7 @@ def analyze_downsampling_efficiency(original_data: List[Dict[str, Any]], downsam
 
 def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]], output_dir: str) -> Dict[int, int]:
     """
-    Store downsampled datasets using the compressed format from Phase 5.
+    Store downsampled datasets using the enhanced compression format from Phase 6.
     
     Args:
         downsampled_datasets: Dictionary of interval to downsampled data
@@ -219,15 +219,114 @@ def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]]
     Returns:
         Dictionary mapping interval to file size
     """
-    print(f"\nStoring downsampled data using Phase 5 compression techniques...")
-    print("(Building on columnar + specialized compression from previous phases)")
+    print(f"\nStoring downsampled data using Phase 6 compression techniques...")
+    print("(Building on columnar + enhanced compression from previous phases)")
     
-    # Import compression functions from Phase 5
+    # Import the enhanced compression functions from Phase 6
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent))
+    
+    # Import the enhanced compression functions from 06_compression_tricks.py
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("phase6", "06_compression_tricks.py")
+        phase6 = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(phase6)
+        
+        # Use the enhanced compression functions
+        compress_columnar_data_enhanced = phase6.compress_columnar_data_enhanced
+        detect_advanced_patterns = phase6.detect_advanced_patterns
+        compress_metadata_aggressively = phase6.compress_metadata_aggressively
+        compress_values_advanced = phase6.compress_values_advanced
+        compress_timestamps_advanced = phase6.compress_timestamps_advanced
+        
+    except Exception as e:
+        print(f"❌ Error importing Phase 6 enhanced compression: {e}")
+        print("Falling back to basic compression...")
+        return store_downsampled_data_basic(downsampled_datasets, output_dir)
+    
+    file_sizes = {}
+    
+    for interval, ds_data in downsampled_datasets.items():
+        if not ds_data:
+            continue
+        
+        print(f"  Processing {interval}s interval data...")
+        
+        # Convert to columnar format manually (like Phase 5)
+        series_metadata = {}
+        series_data = {}
+        series_id_map = {}
+        next_series_id = 0
+        
+        for point in ds_data:
+            # Create series key
+            series_key = (point["metric_name"], tuple(sorted(point["labels"].items())))
+            
+            if series_key not in series_id_map:
+                series_id = str(next_series_id)
+                series_id_map[series_key] = series_id
+                next_series_id += 1
+                
+                series_metadata[series_id] = {
+                    "metric_name": point["metric_name"],
+                    "labels": point["labels"]
+                }
+                series_data[series_id] = {"timestamps": [], "values": []}
+            
+            series_id = series_id_map[series_key]
+            series_data[series_id]["timestamps"].append(point["timestamp"])
+            series_data[series_id]["values"].append(point["value"])
+        
+        # Create columnar structure
+        columnar_data = {
+            "series_metadata": series_metadata,
+            "series_data": series_data
+        }
+        
+        # Apply enhanced compression using Phase 6 functions
+        enhanced_compressed = compress_columnar_data_enhanced(columnar_data)
+        
+        # Store using enhanced compression + zstd (same as Phase 6)
+        output_file = os.path.join(output_dir, f"metrics.downsampled.{interval}s.zst")
+        
+        # Serialize and compress with maximum zstd compression (same approach as Phase 6)
+        import msgpack
+        import zstandard as zstd
+        
+        msgpack_data = msgpack.packb(enhanced_compressed, use_bin_type=True)
+        compressor = zstd.ZstdCompressor(level=22)  # Maximum compression like Phase 6
+        compressed_data_bytes = compressor.compress(msgpack_data)
+        
+        with open(output_file, "wb") as f:
+            f.write(compressed_data_bytes)
+        
+        file_size = len(compressed_data_bytes)
+        file_sizes[interval] = file_size
+        
+        print(f"    Stored {interval}s data: {file_size:,} bytes ({len(ds_data):,} points)")
+    
+    return file_sizes
+
+
+def store_downsampled_data_basic(downsampled_datasets: Dict[int, List[Dict[str, Any]]], output_dir: str) -> Dict[int, int]:
+    """
+    Fallback basic storage function using Phase 5 compression techniques.
+    """
+    print(f"Using basic Phase 5 compression as fallback...")
+    
+    # Import compression functions from lib
     import sys
     from pathlib import Path
     lib_path = Path(__file__).parent / "lib"
     sys.path.insert(0, str(lib_path))
-    from encoders import delta_encode_timestamps, xor_encode_floats, run_length_encode
+    
+    try:
+        from encoders import delta_encode_timestamps, xor_encode_floats, run_length_encode
+    except ImportError:
+        print("❌ Error: Could not import compression functions")
+        return {}
     
     file_sizes = {}
     
@@ -261,7 +360,7 @@ def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]]
             series_data[series_id]["timestamps"].append(point["timestamp"])
             series_data[series_id]["values"].append(point["value"])
         
-        # Now apply Phase 5 compression techniques to each series
+        # Now apply basic compression techniques to each series
         compressed_series_data = {}
         
         for series_id, data in series_data.items():
@@ -355,9 +454,9 @@ def main():
     print("=" * 60)
     
     # Verify that Phase 6 exists (we build on its techniques)
-    compressed_file = "output/metrics.compressed.zst"
+    compressed_file = "output/metrics.enhanced_compressed.zst"  # Updated to use enhanced compression file
     if not os.path.exists(compressed_file):
-        print(f"❌ Error: {compressed_file} not found. Please run 05_compression_tricks.py first.")
+        print(f"❌ Error: {compressed_file} not found. Please run 06_compression_tricks.py first.")
         return
     
     # For simplicity of demonstration, we'll use the original data for downsampling
@@ -391,7 +490,7 @@ def main():
     demonstrate_query_efficiency(original_data, downsampled_datasets)
     
     # Compare with high-resolution compressed storage
-    compressed_file = "output/metrics.compressed.zst"
+    compressed_file = "output/metrics.enhanced_compressed.zst"  # Updated to use enhanced compression file
     high_res_size = os.path.getsize(compressed_file) if os.path.exists(compressed_file) else None
     
     print(f"\n📊 Downsampling Storage Results:")
