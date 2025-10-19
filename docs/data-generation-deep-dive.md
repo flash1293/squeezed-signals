@@ -1,8 +1,24 @@
 # Data Generation Deep Dive
 
+## Enhanced Time Series Data Examples
+
+The enhanced data generator creates realistic monitoring data that closely resembles production systems. These examples demonstrate the key patterns that enable superior compression ratios:
+
+![Example Time Series Data](charts/data_series_examples.png)
+
+*Real-world patterns: infrastructure correlation (top-left), value quantization (top-right), seasonal patterns (bottom-left), and monotonic counters (bottom-right)*
+
+![Detailed Timestamp Analysis](charts/timestamp_intervals_detailed.png)
+
+*Enhanced timestamp regularity: 94.6% perfect 30-second intervals with minimal jitter*
+
 ## Overview
 
 The enhanced data generator creates realistic time-series metrics with patterns commonly found in production monitoring systems. These patterns significantly improve compression ratios while maintaining data realism and integrity.
+
+![Compression Impact Analysis](charts/compression_impact.png)
+
+*The enhanced data generation achieves 30.6x compression compared to 14.4x with random data*
 
 ## Why Enhanced Data Generation?
 
@@ -39,6 +55,10 @@ for host in hosts:
 
 **Compression benefit**: Shared seasonal patterns create similar value sequences across related metrics.
 
+![Infrastructure Correlation Patterns](charts/infrastructure_correlation.png)
+
+*CPU usage patterns show clear infrastructure correlation by host-region combinations*
+
 ### 2. Timestamp Regularity Enhancement
 
 **Concept**: Modern monitoring systems have very regular scraping intervals with minimal jitter.
@@ -64,6 +84,10 @@ for i in range(num_points_per_series):
 - Hardware timestamping in network monitoring
 
 **Compression benefit**: Regular intervals produce massive numbers of zero deltas (94.6% vs 4.8% in random data).
+
+![Timestamp Regularity Analysis](charts/timestamp_regularity.png)
+
+*94.6% of timestamps show perfect regularity, dramatically improving delta compression*
 
 ### 3. Value Quantization Strategies
 
@@ -93,6 +117,10 @@ elif "duration" in series["name"] or "response_time" in series["name"]:
 - Sensor readings limited by hardware precision
 
 **Compression benefit**: Quantized values create repeating bit patterns that XOR compression exploits effectively.
+
+![Value Quantization Patterns](charts/value_quantization.png)
+
+*Different metric types show realistic quantization patterns that improve compression*
 
 ### 4. Platform Stability Modeling
 
@@ -133,6 +161,10 @@ random_walk_step *= (1.0 - stability_damping * 0.5)
 - **Network/Disk I/O**: Counter-based with infrastructure correlation
 - **Connection counts**: Integer values with load correlation
 - **Queue sizes**: Integer values with bounded ranges
+
+![Seasonal Patterns and Cross-Metric Correlations](charts/seasonal_patterns.png)
+
+*Daily usage patterns and cross-metric correlations demonstrate realistic monitoring behavior*
 
 ## Compression Impact Analysis
 
