@@ -89,14 +89,14 @@ def calculate_aggregates(bucket_data: List[Tuple[int, float]]) -> Dict[str, floa
 
 def downsample_series(series_data: Dict[str, Any], interval_seconds: int) -> List[Dict[str, Any]]:
     """
-    Downsample a single time series into multiple aggregated series.
+    Downsample a single time series to reduce data points while preserving trends.
     
     Args:
         series_data: Original series data with timestamps and values
         interval_seconds: Downsampling interval in seconds
         
     Returns:
-        List of new downsampled data points
+        List of downsampled data points (one per time bucket)
     """
     timestamps = series_data["timestamps"]
     values = series_data["values"]
@@ -107,26 +107,25 @@ def downsample_series(series_data: Dict[str, Any], interval_seconds: int) -> Lis
     # Create time buckets
     buckets = create_time_buckets(timestamps, values, interval_seconds)
     
-    # Generate downsampled points
+    # Generate downsampled points (one per bucket using average)
     downsampled_points = []
     
     for bucket_start, bucket_data in sorted(buckets.items()):
         # Sort bucket data by timestamp
         bucket_data.sort(key=lambda x: x[0])
         
-        # Calculate aggregates
-        aggregates = calculate_aggregates(bucket_data)
+        # Calculate just the average for simplicity (this is the key fix!)
+        values_in_bucket = [value for _, value in bucket_data]
         
-        if aggregates:
-            # Create data points for each aggregate
-            for agg_name, agg_value in aggregates.items():
-                downsampled_points.append({
-                    "timestamp": bucket_start,
-                    "aggregate": agg_name,
-                    "value": agg_value,
-                    "interval_seconds": interval_seconds,
-                    "original_count": len(bucket_data)
-                })
+        if values_in_bucket:
+            avg_value = sum(values_in_bucket) / len(values_in_bucket)
+            
+            downsampled_points.append({
+                "timestamp": bucket_start,
+                "value": avg_value,
+                "interval_seconds": interval_seconds,
+                "original_count": len(bucket_data)
+            })
     
     return downsampled_points
 
@@ -171,16 +170,16 @@ def downsample_dataset(original_data: List[Dict[str, Any]], intervals: List[int]
             series_data = {"timestamps": timestamps, "values": values}
             downsampled_series = downsample_series(series_data, interval)
             
-            # Convert back to original format with additional aggregate info
+            # Convert back to original format (much simpler now!)
             for ds_point in downsampled_series:
                 full_point = {
                     "timestamp": ds_point["timestamp"],
-                    "metric_name": f"{metric_name}_{ds_point['aggregate']}_{interval}s",
+                    "metric_name": metric_name,  # Keep original metric name
                     "value": ds_point["value"],
                     "labels": labels.copy(),
                     "aggregate_info": {
                         "original_metric": metric_name,
-                        "aggregate_type": ds_point["aggregate"],
+                        "aggregate_type": "avg",  # We're using average
                         "interval_seconds": interval,
                         "original_count": ds_point["original_count"]
                     }
@@ -205,14 +204,7 @@ def analyze_downsampling_efficiency(original_data: List[Dict[str, Any]], downsam
         reduction_percent = (1 - ds_count / original_count) * 100 if original_count > 0 else 0
         
         print(f"  {interval}s interval: {ds_count:,} points ({reduction_ratio:.1f}x reduction, {reduction_percent:.1f}% less data)")
-        
-        # Analyze aggregate distribution
-        agg_types = defaultdict(int)
-        for point in ds_data[:1000]:  # Sample first 1000 points
-            agg_type = point.get("aggregate_info", {}).get("aggregate_type", "unknown")
-            agg_types[agg_type] += 1
-        
-        print(f"    Aggregate types: {dict(agg_types)}")
+        print(f"    Using average aggregation per time bucket")
 
 def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]], output_dir: str) -> Dict[int, int]:
     """
