@@ -181,7 +181,7 @@ def chart_infrastructure_correlation(df, charts_dir):
     data_for_box = [cpu_data[cpu_data['infra_type'] == infra]['value'].values 
                     for infra in infra_types]
     
-    box_plot = ax4.boxplot(data_for_box, labels=infra_types, patch_artist=True)
+    box_plot = ax4.boxplot(data_for_box, tick_labels=infra_types, patch_artist=True)
     for patch, color in zip(box_plot['boxes'], sns.color_palette("husl", len(infra_types))):
         patch.set_facecolor(color)
         patch.set_alpha(0.7)
@@ -591,16 +591,23 @@ def chart_data_series_examples(df, charts_dir):
     
     # Chart 2: HTTP request latency showing quantization
     ax2 = axes[0, 1]
-    latency_data = df[df['metric_name'] == 'http_request_duration_ms'].copy()
+    # Try different latency metric names
+    latency_metrics = ['http_request_duration_ms', 'http_request_duration_seconds', 'response_time_ms']
+    latency_data = None
     
-    if len(latency_data) > 0:
+    for metric in latency_metrics:
+        if metric in df['metric_name'].values:
+            latency_data = df[df['metric_name'] == metric].copy()
+            break
+    
+    if latency_data is not None and len(latency_data) > 0:
         # Show a sample of latency data points
         sample_data = latency_data.sample(min(1000, len(latency_data))).sort_values('datetime')
         
         ax2.scatter(sample_data['datetime'], sample_data['value'], 
                    alpha=0.6, s=8, color='orange')
         ax2.set_title('HTTP Request Duration: Value Quantization')
-        ax2.set_ylabel('Duration (ms)')
+        ax2.set_ylabel('Duration (seconds)' if 'seconds' in metric else 'Duration (ms)')
         ax2.grid(True, alpha=0.3)
         ax2.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
         
@@ -608,24 +615,67 @@ def chart_data_series_examples(df, charts_dir):
         ax2.text(0.02, 0.98, 'Note: Values show realistic\nprecision patterns', 
                 transform=ax2.transAxes, verticalalignment='top', 
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    else:
+        # No latency data found, show error rate instead
+        error_data = df[df['metric_name'] == 'error_rate_percent'].copy()
+        if len(error_data) > 0:
+            sample_data = error_data.sample(min(1000, len(error_data))).sort_values('datetime')
+            ax2.scatter(sample_data['datetime'], sample_data['value'], 
+                       alpha=0.6, s=8, color='red')
+            ax2.set_title('Error Rate: Value Distribution')
+            ax2.set_ylabel('Error Rate (%)')
+            ax2.grid(True, alpha=0.3)
+            ax2.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        else:
+            ax2.text(0.5, 0.5, 'No suitable metric found\nfor this chart', 
+                    transform=ax2.transAxes, ha='center', va='center',
+                    bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.5))
     
     # Chart 3: Memory usage showing seasonal patterns
     ax3 = axes[1, 0]
     memory_data = df[df['metric_name'] == 'memory_usage_percent'].copy()
     
     if len(memory_data) > 0:
-        # Aggregate by time for cleaner visualization
-        memory_data = memory_data.groupby('datetime')['value'].mean().reset_index()
-        memory_data = memory_data.sort_values('datetime')
-        
-        ax3.plot(memory_data['datetime'], memory_data['value'], 
-                color='green', linewidth=1.5)
-        ax3.fill_between(memory_data['datetime'], memory_data['value'], 
-                        alpha=0.3, color='green')
-        ax3.set_title('Memory Usage: Seasonal Daily Patterns')
-        ax3.set_ylabel('Memory Usage (%)')
-        ax3.grid(True, alpha=0.3)
-        ax3.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        try:
+            # Sample one series for cleaner visualization
+            sample_host = memory_data['label_host'].iloc[0]
+            sample_region = memory_data['label_region'].iloc[0]
+            
+            series_data = memory_data[
+                (memory_data['label_host'] == sample_host) & 
+                (memory_data['label_region'] == sample_region)
+            ].sort_values('datetime')
+            
+            if len(series_data) > 10:
+                ax3.plot(series_data['datetime'], series_data['value'], 
+                        color='green', linewidth=1.5)
+                ax3.fill_between(series_data['datetime'], series_data['value'], 
+                                alpha=0.3, color='green')
+                ax3.set_title(f'Memory Usage: {sample_host}-{sample_region}')
+                ax3.set_ylabel('Memory Usage (%)')
+                ax3.grid(True, alpha=0.3)
+                ax3.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+            else:
+                # Fallback: aggregate all data
+                memory_data_agg = memory_data.groupby('datetime')['value'].mean().reset_index()
+                memory_data_agg = memory_data_agg.sort_values('datetime')
+                
+                ax3.plot(memory_data_agg['datetime'], memory_data_agg['value'], 
+                        color='green', linewidth=1.5)
+                ax3.fill_between(memory_data_agg['datetime'], memory_data_agg['value'], 
+                                alpha=0.3, color='green')
+                ax3.set_title('Memory Usage: Aggregated Pattern')
+                ax3.set_ylabel('Memory Usage (%)')
+                ax3.grid(True, alpha=0.3)
+                ax3.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        except Exception as e:
+            ax3.text(0.5, 0.5, f'Error rendering memory chart:\n{str(e)}', 
+                    transform=ax3.transAxes, ha='center', va='center',
+                    bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.5))
+    else:
+        ax3.text(0.5, 0.5, 'No memory usage data found', 
+                transform=ax3.transAxes, ha='center', va='center',
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.5))
     
     # Chart 4: HTTP request count showing counter behavior
     ax4 = axes[1, 1]
@@ -800,28 +850,9 @@ def main():
     charts_dir = create_charts_directory()
     print(f"✅ Created charts directory: {charts_dir}")
     
-    # Generate data series illustration charts (new)
+    # Generate data series illustration charts only
     print("📈 Generating data series examples...")
     chart_data_series_examples(df, charts_dir)
-    
-    print("📈 Generating detailed timestamp intervals...")
-    chart_timestamp_intervals(df, charts_dir)
-    
-    # Generate analysis charts
-    print("📈 Generating timestamp regularity chart...")
-    chart_timestamp_regularity(df, charts_dir)
-    
-    print("📈 Generating infrastructure correlation chart...")
-    chart_infrastructure_correlation(df, charts_dir)
-    
-    print("📈 Generating value quantization chart...")
-    chart_value_quantization(df, charts_dir)
-    
-    print("📈 Generating seasonal patterns chart...")
-    chart_seasonal_patterns(df, charts_dir)
-    
-    print("📈 Generating compression impact chart...")
-    chart_compression_impact(df, charts_dir)
     
     print("\n🎉 All charts generated successfully!")
     print(f"📁 Charts saved to: {charts_dir.absolute()}")
