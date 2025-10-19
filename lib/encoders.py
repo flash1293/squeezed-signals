@@ -349,7 +349,7 @@ class _BitReader:
 
 def simple_delta_encode_floats(values: List[float]) -> Tuple[float, bytes]:
     """
-    Delta encoding with variable-length compression for float values.
+    Simple delta encoding for float values using direct serialization.
     
     Args:
         values: List of float values
@@ -364,99 +364,55 @@ def simple_delta_encode_floats(values: List[float]) -> Tuple[float, bytes]:
         return values[0], b''
     
     first_value = values[0]
-    deltas = []
     
+    # Calculate deltas
+    deltas = []
     for i in range(1, len(values)):
         delta = values[i] - values[i-1]
         deltas.append(delta)
     
-    # Compress deltas using variable-length encoding
-    compressed_data = _compress_float_deltas(deltas)
+    # Simple approach: serialize deltas directly with compression for zeros
+    compressed_data = _simple_compress_float_deltas(deltas)
     
     return first_value, compressed_data
 
-def _compress_float_deltas(deltas: List[float]) -> bytes:
-    """Compress a list of float deltas using variable-length encoding."""
+def _simple_compress_float_deltas(deltas: List[float]) -> bytes:
+    """Simple compression of float deltas - focus on zero compression."""
     if not deltas:
         return b''
     
-    writer = _BitWriter()
+    compressed = bytearray()
     
-    for delta in deltas:
-        if delta == 0.0:
-            # Zero delta - store single bit '0'
-            writer.write_bits(0, 1)
-        else:
-            # Non-zero delta - store '1' + compressed float
-            writer.write_bits(1, 1)
-            
-            # Convert to bytes and compress
-            delta_bytes = struct.pack('>d', delta)
-            
-            # Count leading zero bytes
-            leading_zero_bytes = 0
-            for byte in delta_bytes:
-                if byte == 0:
-                    leading_zero_bytes += 1
-                else:
-                    break
-            
-            # Count trailing zero bytes
-            trailing_zero_bytes = 0
-            for byte in reversed(delta_bytes):
-                if byte == 0:
-                    trailing_zero_bytes += 1
-                else:
-                    break
-            
-            # Store significant bytes
-            significant_bytes = 8 - leading_zero_bytes - trailing_zero_bytes
-            if significant_bytes <= 0:
-                significant_bytes = 1  # At least one byte
-                leading_zero_bytes = 7
-                trailing_zero_bytes = 0
-            
-            # Store: leading_zero_bytes (3 bits) + significant_bytes_count (3 bits) + significant_data
-            writer.write_bits(leading_zero_bytes, 3)
-            writer.write_bits(significant_bytes, 3)
-            
-            # Store significant bytes
-            for i in range(leading_zero_bytes, 8 - trailing_zero_bytes):
-                writer.write_bits(delta_bytes[i], 8)
+    # Write number of deltas first
+    compressed.extend(struct.pack('>I', len(deltas)))
     
-    return writer.flush()
-
-def simple_delta_encode_floats(values: List[float]) -> Tuple[float, bytes]:
-    """
-    Delta encoding with variable-length compression for float values.
-    
-    Args:
-        values: List of float values
+    i = 0
+    while i < len(deltas):
+        delta = deltas[i]
         
-    Returns:
-        Tuple of (first_value, compressed_delta_data)
-    """
-    if not values:
-        return 0.0, b''
+        if delta == 0.0:
+            # Count consecutive zeros
+            zero_count = 0
+            j = i
+            while j < len(deltas) and deltas[j] == 0.0:
+                zero_count += 1
+                j += 1
+            
+            # Store as: 0x00 (zero marker) + count (4 bytes)
+            compressed.append(0x00)
+            compressed.extend(struct.pack('>I', zero_count))
+            i = j
+        else:
+            # Store as: 0x01 (non-zero marker) + double (8 bytes)
+            compressed.append(0x01)
+            compressed.extend(struct.pack('>d', delta))
+            i += 1
     
-    if len(values) == 1:
-        return values[0], b''
-    
-    first_value = values[0]
-    deltas = []
-    
-    for i in range(1, len(values)):
-        delta = values[i] - values[i-1]
-        deltas.append(delta)
-    
-    # Compress deltas using variable-length encoding
-    compressed_data = _compress_float_deltas(deltas)
-    
-    return first_value, compressed_data
+    return bytes(compressed)
 
 def simple_delta_decode_floats(first_value: float, compressed_data: bytes, target_count: int = None) -> List[float]:
     """
-    Decode delta encoded float values from compressed data.
+    Decode simple delta encoded float values from compressed data.
     
     Args:
         first_value: The first float value
@@ -472,56 +428,59 @@ def simple_delta_decode_floats(first_value: float, compressed_data: bytes, targe
     values = [first_value]
     current_value = first_value
     
-    # Initialize bit reader
-    bit_reader = _BitReader(compressed_data)
-    
     try:
-        # Keep reading until we run out of bits or reach target count
-        while bit_reader.has_bits(1) and (target_count is None or len(values) < target_count):
-            # Read control bit
-            control_bit = bit_reader.read_bits(1)
+        # Read number of deltas
+        if len(compressed_data) < 4:
+            return values
+        
+        num_deltas = struct.unpack('>I', compressed_data[:4])[0]
+        
+        # Validate target count if provided
+        if target_count is not None and num_deltas != target_count - 1:
+            # Mismatch in expected delta count, but continue decoding
+            pass
+        
+        offset = 4
+        deltas_read = 0
+        
+        while offset < len(compressed_data) and deltas_read < num_deltas:
+            if offset >= len(compressed_data):
+                break
             
-            if control_bit == 0:
-                # Zero delta
-                delta = 0.0
+            marker = compressed_data[offset]
+            offset += 1
+            
+            if marker == 0x00:  # Zero marker
+                if offset + 4 > len(compressed_data):
+                    break
+                
+                zero_count = struct.unpack('>I', compressed_data[offset:offset+4])[0]
+                offset += 4
+                
+                # Add zeros
+                for _ in range(zero_count):
+                    values.append(current_value)
+                    deltas_read += 1
+                    if deltas_read >= num_deltas:
+                        break
+            
+            elif marker == 0x01:  # Non-zero marker
+                if offset + 8 > len(compressed_data):
+                    break
+                
+                delta = struct.unpack('>d', compressed_data[offset:offset+8])[0]
+                offset += 8
+                
+                current_value += delta
+                values.append(current_value)
+                deltas_read += 1
+            
             else:
-                # Need at least 6 more bits (3 + 3) for metadata
-                if not bit_reader.has_bits(6):
-                    break
-                
-                # Read leading zero bytes (3 bits) and significant bytes count (3 bits)
-                leading_zero_bytes = bit_reader.read_bits(3)
-                significant_bytes = bit_reader.read_bits(3)
-                
-                if significant_bytes == 0 or significant_bytes > 8:
-                    # Invalid data, stop reading
-                    break
-                
-                # Check if we have enough bits for the significant bytes
-                if not bit_reader.has_bits(significant_bytes * 8):
-                    break
-                
-                # Reconstruct delta bytes
-                delta_bytes = bytearray(8)
-                
-                # Read significant bytes
-                for i in range(leading_zero_bytes, leading_zero_bytes + significant_bytes):
-                    if i < 8:
-                        delta_bytes[i] = bit_reader.read_bits(8)
-                
-                # Convert back to float
-                try:
-                    delta = struct.unpack('>d', bytes(delta_bytes))[0]
-                except struct.error:
-                    # Invalid float data, stop reading
-                    break
-            
-            # Add delta to get next value
-            current_value += delta
-            values.append(current_value)
+                # Invalid marker, stop reading
+                break
     
     except (ValueError, struct.error):
-        # If we encounter an error, stop reading
+        # If we encounter an error, return what we have
         pass
     
     return values
