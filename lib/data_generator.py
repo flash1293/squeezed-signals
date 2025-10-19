@@ -15,21 +15,47 @@ def generate_metric_data(
     num_points_per_series: int = 1000,  # Will be overridden by dataset_size parameter
     base_interval: int = 15,   # seconds
     jitter_range: int = 2,     # seconds (reduced for regularity)
-    dataset_size: str = "small"  # "small" or "big"
+    dataset_size: str = "small",  # "small" or "big"
+    data_generator: str = "synthetic"  # "synthetic" or "real"
 ) -> List[Dict[str, Any]]:
     """
-    Generate enhanced time-series metric data with better compression characteristics.
+    Generate time-series metric data with choice between synthetic and real data.
     
     Args:
-        num_series: Number of unique time series (overridden by dataset_size)
-        num_points_per_series: Number of data points per series (overridden by dataset_size)
-        base_interval: Base scrape interval in seconds
-        jitter_range: Random jitter range in seconds (reduced for regularity)
-        dataset_size: "small" (50 series x 1k points) or "big" (500 series x 10k points)
+        num_series: Number of unique time series (overridden by dataset_size for synthetic)
+        num_points_per_series: Number of data points per series (overridden by dataset_size for synthetic)
+        base_interval: Base scrape interval in seconds (synthetic only)
+        jitter_range: Random jitter range in seconds (synthetic only)
+        dataset_size: "small" or "big" - controls data volume
+        data_generator: "synthetic" (enhanced patterns) or "real" (actual performance data)
         
     Returns:
-        List of data point dictionaries with enhanced patterns
+        List of data point dictionaries
     """
+    
+    # Route to appropriate generator
+    if data_generator == "real":
+        from .real_data_generator import generate_real_metric_data
+        return generate_real_metric_data(dataset_size=dataset_size)
+    elif data_generator == "synthetic":
+        return _generate_synthetic_metric_data(
+            num_series=num_series,
+            num_points_per_series=num_points_per_series,
+            base_interval=base_interval,
+            jitter_range=jitter_range,
+            dataset_size=dataset_size
+        )
+    else:
+        raise ValueError("data_generator must be 'synthetic' or 'real'")
+
+def _generate_synthetic_metric_data(
+    num_series: int = 50,
+    num_points_per_series: int = 1000,
+    base_interval: int = 15,
+    jitter_range: int = 2,
+    dataset_size: str = "small"
+) -> List[Dict[str, Any]]:
+    """Generate enhanced synthetic time-series metric data with better compression characteristics."""
     
     # Override parameters based on dataset size
     if dataset_size == "small":

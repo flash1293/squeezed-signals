@@ -22,8 +22,14 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Run the complete demonstration
+# Run the complete demonstration with synthetic data (default)
 python main.py --size small
+
+# Use real monitoring data instead
+DATA_GENERATOR=real python main.py --size small
+
+# Generate larger datasets
+DATASET_SIZE=big python main.py --size big
 ```
 
 ## 📊 Results Preview
@@ -42,13 +48,35 @@ With enhanced dataset (48,000 points):
 
 **🎯 Key Achievement: 486x compression** for long-term storage (3600s downsampling)
 
-## 🔬 Enhanced Data Generation
+## 🔬 Data Generation Options
 
-The data generator creates realistic time-series patterns that improve compression without sacrificing realism:
+### Synthetic Data Generator (Default)
+Creates realistic time-series patterns that improve compression without sacrificing realism:
 
 - **Infrastructure Correlation**: Services on same platforms show shared load patterns
-- **Value Quantization**: Realistic precision levels (percentages to 1-2 decimals, latencies rounded appropriately)
+- **Value Quantization**: Realistic precision levels (percentages to 1-2 decimals, latencies rounded appropriately)  
 - **Timestamp Regularity**: 94.6% perfect intervals reflecting modern monitoring systems
+
+### Real Data Generator
+Uses actual performance monitoring data from the [Westermo test-system-performance-dataset](https://github.com/westermo/test-system-performance-dataset):
+
+- **Authentic Patterns**: Real system metrics from production environments
+- **Diverse Metrics**: CPU, memory, disk, network, and system load data
+- **Natural Irregularities**: Actual timestamp patterns and value distributions
+
+```bash
+# Use real monitoring data
+DATA_GENERATOR=real python main.py --size small
+
+# Control dataset size (both generators)
+DATASET_SIZE=small   # ~50,000 points
+DATASET_SIZE=big     # ~500,000 points
+
+# Compare generators easily
+python compare_generators.py synthetic small
+python compare_generators.py real small  
+python compare_generators.py compare  # Run both for comparison
+```
 - **Platform Stability**: Well-managed services show reduced random variation
 
 **Compression Breakdown in Phase 5:**

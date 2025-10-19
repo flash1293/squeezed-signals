@@ -17,28 +17,38 @@ def main():
     print("Phase 0: Generating Time-Series Dataset")
     print("=" * 60)
     
-    # Get dataset size from environment variable or default to small
+    # Get configuration from environment variables or defaults
     dataset_size = os.environ.get('DATASET_SIZE', 'small')
+    data_generator = os.environ.get('DATA_GENERATOR', 'synthetic')
     
-    # Configuration for enhanced data generation
+    # Configuration for data generation
     config = {
-        "dataset_size": dataset_size,   # Read from environment or default to small
-        "base_interval": 15,        # Base scrape interval (seconds)
-        "jitter_range": 2          # Random jitter range (seconds) - reduced for regularity
+        "dataset_size": dataset_size,      # Read from environment or default to small
+        "data_generator": data_generator,  # Read from environment or default to synthetic
+        "base_interval": 15,               # Base scrape interval (seconds) - synthetic only
+        "jitter_range": 2                  # Random jitter range (seconds) - synthetic only
     }
     
-    print(f"Generating enhanced dataset with configuration:")
+    print(f"Generating dataset with configuration:")
     for key, value in config.items():
         print(f"  {key}: {value}")
-    print(f"  Enhanced patterns: Infrastructure correlation, value quantization, timestamp regularity")
+    
+    if data_generator == "synthetic":
+        print(f"  Enhanced patterns: Infrastructure correlation, value quantization, timestamp regularity")
+    elif data_generator == "real":
+        print(f"  Real monitoring data: Westermo test-system-performance-dataset")
     print()
     
-    # Generate the data using enhanced generator
+    # Generate the data using appropriate generator
     print("Generating data points...")
     data_points = generate_metric_data(**config)
     
-    # Print statistics
-    print_data_stats(data_points)
+    # Print statistics using appropriate function
+    if data_generator == "real":
+        from lib.real_data_generator import print_real_data_stats
+        print_real_data_stats(data_points)
+    else:
+        print_data_stats(data_points)
     
     # Save the raw data for use by other phases
     output_dir = "output"
