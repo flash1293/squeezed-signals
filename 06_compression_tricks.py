@@ -10,6 +10,7 @@ compression for additional space savings.
 import os
 import pickle
 import msgpack
+import struct
 import zstandard as zstd
 from typing import List, Dict, Any, Tuple
 from lib.encoders import (
@@ -20,9 +21,229 @@ from lib.encoders import (
     compress_integer_list, decompress_integer_list
 )
 
+def detect_series_pattern(values: List[float]) -> str:
+    """Detect the pattern in a series to choose optimal compression."""
+    if not values or len(values) < 3:
+        return "sparse"
+    
+    # Check for constant values (all identical)
+    if all(v == values[0] for v in values):
+        return "constant"
+    
+    # Check for mostly zeros or very sparse data
+    zero_count = sum(1 for v in values if v == 0.0)
+    if zero_count / len(values) > 0.5:  # More than 50% zeros
+        return "sparse"
+    
+    # Check for repeating pattern (common in monitoring data)
+    if len(values) >= 10:
+        # Try different pattern lengths
+        for pattern_len in [2, 3, 4, 5, 8, 12, 24]:
+            if pattern_len * 3 <= len(values):  # Need at least 3 repetitions
+                pattern = values[:pattern_len]
+                is_repeating = True
+                for i in range(pattern_len, len(values), pattern_len):
+                    chunk = values[i:i+pattern_len]
+                    if len(chunk) == pattern_len:
+                        for j, val in enumerate(chunk):
+                            if abs(val - pattern[j]) > 1e-10:
+                                is_repeating = False
+                                break
+                    if not is_repeating:
+                        break
+                
+                if is_repeating:
+                    return f"repeat_{pattern_len}"
+    
+    # Check for linear trend (arithmetic progression)
+    if len(values) >= 3:
+        deltas = [values[i] - values[i-1] for i in range(1, len(values))]
+        delta_variance = sum((d - deltas[0])**2 for d in deltas) / len(deltas)
+        if delta_variance < 1e-10:  # Very low variance in deltas
+            return "linear"
+    
+    # Check for quantized values (common in monitoring - only certain values appear)
+    unique_values = list(set(values))
+    if len(unique_values) <= min(20, len(values) // 10):  # Very few unique values
+        return "quantized"
+    
+    # Check for smooth/similar values (good for XOR compression)
+    value_variance = sum((v - values[0])**2 for v in values) / len(values)
+    if value_variance < 100:  # Relatively low variance
+        return "smooth"
+    
+    return "random"
+
+def compress_series_optimized(timestamps: List[int], values: List[float], series_id: str) -> Tuple[Dict, Dict]:
+    """Optimized compression for a single series based on detected patterns."""
+    # Simple timestamp compression - just store first + deltas
+    compressed_timestamps = None
+    if timestamps:
+        if len(timestamps) == 1:
+            compressed_timestamps = {"method": "single", "value": timestamps[0]}
+        else:
+            # Check if all deltas are the same (regular intervals)
+            deltas = [timestamps[i] - timestamps[i-1] for i in range(1, len(timestamps))]
+            if all(d == deltas[0] for d in deltas):
+                # Regular intervals - store first timestamp + interval + count
+                compressed_timestamps = {
+                    "method": "regular",
+                    "start": timestamps[0], 
+                    "interval": deltas[0],
+                    "count": len(timestamps)
+                }
+            else:
+                # Irregular intervals - use simple delta encoding
+                compressed_timestamps = {
+                    "method": "delta",
+                    "start": timestamps[0],
+                    "deltas": deltas
+                }
+    else:
+        compressed_timestamps = {"method": "empty"}
+    
+    # Optimized value compression based on pattern
+    compressed_values = None
+    if values:
+        pattern = detect_series_pattern(values)
+        
+        if pattern == "constant":
+            # All values are the same
+            compressed_values = {
+                "method": "constant",
+                "value": values[0],
+                "count": len(values)
+            }
+            print(f"    Series {series_id}: Constant pattern - {len(values)} values = {values[0]}")
+            
+        elif pattern == "sparse":
+            # Mostly zeros - store non-zero indices and values
+            non_zero_data = [(i, v) for i, v in enumerate(values) if v != 0.0]
+            if len(non_zero_data) < len(values) * 0.3:  # Less than 30% non-zero
+                # Further optimize sparse data with delta compression on indices
+                if len(non_zero_data) > 1:
+                    indices = [item[0] for item in non_zero_data]
+                    index_deltas = [indices[i] - indices[i-1] for i in range(1, len(indices))]
+                    
+                    compressed_values = {
+                        "method": "sparse_optimized",
+                        "length": len(values),
+                        "first_index": indices[0],
+                        "index_deltas": index_deltas,
+                        "values": [item[1] for item in non_zero_data]
+                    }
+                    print(f"    Series {series_id}: Sparse optimized - {len(non_zero_data)} non-zero out of {len(values)} (delta-compressed indices)")
+                else:
+                    compressed_values = {
+                        "method": "sparse",
+                        "length": len(values),
+                        "non_zero": non_zero_data
+                    }
+                    print(f"    Series {series_id}: Sparse pattern - {len(non_zero_data)} non-zero out of {len(values)}")
+            else:
+                # Fall back to delta encoding
+                compressed_values = _compress_values_delta(values)
+                print(f"    Series {series_id}: Delta fallback for sparse")
+                
+        elif pattern == "linear":
+            # Linear trend - store first value + delta
+            delta = values[1] - values[0] if len(values) > 1 else 0.0
+            compressed_values = {
+                "method": "linear",
+                "start": values[0],
+                "delta": delta,
+                "count": len(values)
+            }
+            print(f"    Series {series_id}: Linear pattern - start={values[0]}, delta={delta}")
+            
+        elif pattern.startswith("repeat_"):
+            # Repeating pattern
+            pattern_len = int(pattern.split("_")[1])
+            pattern_data = values[:pattern_len]
+            compressed_values = {
+                "method": "repeat",
+                "pattern": pattern_data,
+                "pattern_len": pattern_len,
+                "total_count": len(values)
+            }
+            print(f"    Series {series_id}: Repeating pattern - {pattern_len} values repeated {len(values)//pattern_len} times")
+            
+        elif pattern == "quantized":
+            # Quantized values - store unique values + indices  
+            unique_values = list(set(values))
+            value_to_index = {v: i for i, v in enumerate(unique_values)}
+            indices = [value_to_index[v] for v in values]
+            
+            # Pack indices efficiently
+            max_index = len(unique_values) - 1
+            bits_needed = max_index.bit_length() if max_index > 0 else 1
+            
+            compressed_values = {
+                "method": "quantized",
+                "unique_values": unique_values,
+                "indices": indices,
+                "bits_per_index": bits_needed
+            }
+            print(f"    Series {series_id}: Quantized pattern - {len(unique_values)} unique values, {bits_needed} bits/index")
+            
+        else:
+            # Use XOR or delta encoding for other patterns
+            try:
+                first_value, xor_data = xor_encode_floats(values)
+                xor_result = {
+                    "method": "xor",
+                    "first": first_value,
+                    "data": xor_data,
+                    "count": len(values),  # Store expected count
+                    "size": len(xor_data)
+                }
+            except:
+                xor_result = None
+            
+            delta_result = _compress_values_delta(values)
+            
+            # Choose the better compression
+            if xor_result and delta_result:
+                if xor_result["size"] < len(delta_result["data"]):
+                    compressed_values = xor_result
+                    print(f"    Series {series_id}: XOR compression - {xor_result['size']} bytes")
+                else:
+                    compressed_values = delta_result  
+                    print(f"    Series {series_id}: Delta compression - {len(delta_result['data'])} bytes")
+            elif xor_result:
+                compressed_values = xor_result
+                print(f"    Series {series_id}: XOR compression - {xor_result['size']} bytes")
+            else:
+                compressed_values = delta_result
+                print(f"    Series {series_id}: Delta compression - {len(delta_result['data'])} bytes")
+    else:
+        compressed_values = {"method": "empty"}
+    
+    return compressed_timestamps, compressed_values
+
+def _compress_values_delta(values: List[float]) -> Dict:
+    """Simple delta compression for values."""
+    if not values:
+        return {"method": "empty"}
+    
+    if len(values) == 1:
+        return {"method": "single", "value": values[0]}
+    
+    # Store first value + deltas
+    deltas = [values[i] - values[i-1] for i in range(1, len(values))]
+    
+    # Pack deltas efficiently
+    delta_bytes = b''.join(struct.pack('>d', d) for d in deltas)
+    
+    return {
+        "method": "delta",
+        "first": values[0],
+        "data": delta_bytes
+    }
+
 def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Apply specialized compression to columnar data.
+    Apply optimized compression to columnar data.
     
     Args:
         columnar_data: Original columnar format data
@@ -30,124 +251,28 @@ def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Compressed columnar data
     """
-    print("Applying specialized compression to columnar data...")
+    print("Applying optimized compression to columnar data...")
     
     series_metadata = columnar_data["series_metadata"]
     series_data = columnar_data["series_data"]
     
     compressed_series_data = {}
     
-    compression_stats = {
-        "original_timestamps_bytes": 0,
-        "compressed_timestamps_bytes": 0,
-        "original_values_bytes": 0,
-        "compressed_values_bytes": 0,
-        "zero_deltas_count": 0,
-        "total_deltas_count": 0
-    }
+    total_original_bytes = 0
+    total_compressed_bytes = 0
     
     for series_id, data in series_data.items():
         timestamps = data["timestamps"]
         values = data["values"]
         
-        print(f"  Compressing series {series_id}: {len(timestamps)} points")
+        # Calculate original size
+        original_bytes = len(timestamps) * 8 + len(values) * 8
+        total_original_bytes += original_bytes
         
-        # Compress timestamps using double-delta encoding
-        if len(timestamps) >= 1:
-            initial_ts, first_delta, double_deltas = delta_encode_timestamps(timestamps)
-            
-            # Count zero deltas for statistics
-            zero_deltas = sum(1 for dd in double_deltas if dd == 0)
-            compression_stats["zero_deltas_count"] += zero_deltas
-            compression_stats["total_deltas_count"] += len(double_deltas)
-            
-            # Apply run-length encoding to double deltas
-            rle_double_deltas = run_length_encode(double_deltas)
-            
-            # Compress the RLE data
-            compressed_double_deltas = compress_integer_list([item for pair in rle_double_deltas for item in pair])
-            
-            # Store compressed timestamp data
-            compressed_timestamps = {
-                "initial": initial_ts,
-                "first_delta": first_delta,
-                "rle_double_deltas": rle_double_deltas,
-                "compressed_rle": compressed_double_deltas
-            }
-            
-            # Calculate compression statistics
-            original_ts_bytes = len(timestamps) * 8  # 8 bytes per int64
-            compressed_ts_bytes = 8 + 8 + len(compressed_double_deltas)  # initial + first_delta + compressed
-            compression_stats["original_timestamps_bytes"] += original_ts_bytes
-            compression_stats["compressed_timestamps_bytes"] += compressed_ts_bytes
-            
-        else:
-            compressed_timestamps = {"initial": 0, "first_delta": 0, "rle_double_deltas": [], "compressed_rle": b""}
-        
-        # Compress values using adaptive compression (XOR vs Delta)
-        if len(values) >= 1:
-            # Try both XOR and delta encoding, choose the best
-            xor_result = None
-            delta_result = None
-            
-            try:
-                first_value, xor_compressed = xor_encode_floats(values)
-                xor_result = {
-                    "method": "xor",
-                    "first_value": first_value,
-                    "compressed_data": xor_compressed,
-                    "expected_count": len(values),
-                    "size": len(xor_compressed)
-                }
-            except Exception as e:
-                print(f"    XOR encoding failed for series {series_id}: {e}")
-            
-            try:
-                first_value, delta_compressed = simple_delta_encode_floats(values)
-                delta_result = {
-                    "method": "delta",
-                    "first_value": first_value,
-                    "compressed_data": delta_compressed,
-                    "expected_count": len(values),
-                    "size": len(delta_compressed)
-                }
-            except Exception as e:
-                print(f"    Delta encoding failed for series {series_id}: {e}")
-            
-            # Choose the best compression method
-            if xor_result and delta_result:
-                if xor_result["size"] <= delta_result["size"]:
-                    compressed_values = xor_result
-                    print(f"    Using XOR compression: {xor_result['size']} bytes vs delta {delta_result['size']} bytes")
-                else:
-                    compressed_values = delta_result
-                    print(f"    Using delta compression: {delta_result['size']} bytes vs XOR {xor_result['size']} bytes")
-            elif xor_result:
-                compressed_values = xor_result
-                print(f"    Using XOR compression: {xor_result['size']} bytes")
-            elif delta_result:
-                compressed_values = delta_result
-                print(f"    Using delta compression: {delta_result['size']} bytes")
-            else:
-                # Fallback to uncompressed
-                compressed_values = {
-                    "method": "uncompressed",
-                    "first_value": values[0] if values else 0.0,
-                    "compressed_data": b'',
-                    "expected_count": len(values),
-                    "size": len(values) * 8
-                }
-                print(f"    Using uncompressed fallback: {compressed_values['size']} bytes")
-            
-            # Calculate compression statistics for values
-            original_val_bytes = len(values) * 8  # 8 bytes per float64
-            compressed_val_bytes = 8 + compressed_values["size"]  # first_value + compressed_data
-            
-            compression_stats["original_values_bytes"] += original_val_bytes
-            compression_stats["compressed_values_bytes"] += compressed_val_bytes
-            
-        else:
-            compressed_values = {"method": "empty", "first_value": 0.0, "compressed_data": b'', "expected_count": 0, "size": 0}
+        # Compress the series
+        compressed_timestamps, compressed_values = compress_series_optimized(
+            timestamps, values, series_id
+        )
         
         compressed_series_data[series_id] = {
             "timestamps": compressed_timestamps,
@@ -155,29 +280,127 @@ def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
             "original_length": len(timestamps)
         }
     
-    # Print compression statistics
-    print(f"\n📊 Compression Statistics:")
-    if compression_stats["total_deltas_count"] > 0:
-        zero_delta_percent = compression_stats["zero_deltas_count"] / compression_stats["total_deltas_count"] * 100
-        print(f"  Zero deltas (perfect regularity): {compression_stats['zero_deltas_count']:,} / {compression_stats['total_deltas_count']:,} ({zero_delta_percent:.1f}%)")
+    # Estimate compressed size (rough calculation)
+    compressed_msgpack = msgpack.packb({
+        "series_metadata": series_metadata,
+        "compressed_series_data": compressed_series_data
+    }, use_bin_type=True)
     
-    ts_compression = compression_stats["original_timestamps_bytes"] / max(compression_stats["compressed_timestamps_bytes"], 1)
-    val_compression = compression_stats["original_values_bytes"] / max(compression_stats["compressed_values_bytes"], 1)
+    total_compressed_bytes = len(compressed_msgpack)
     
-    print(f"  Timestamp compression: {ts_compression:.2f}x")
-    print(f"  Value compression: {val_compression:.2f}x")
+    compression_ratio = total_original_bytes / max(total_compressed_bytes, 1)
+    
+    print(f"\n📊 Optimized Compression Statistics:")
+    print(f"  Original data size: {total_original_bytes:,} bytes")
+    print(f"  Compressed data size: {total_compressed_bytes:,} bytes") 
+    print(f"  Compression ratio: {compression_ratio:.2f}x")
     
     compressed_structure = {
         "series_metadata": series_metadata,
         "compressed_series_data": compressed_series_data,
         "compression_info": {
-            "timestamp_encoding": "double_delta + rle + variable_length",
-            "value_encoding": "xor_or_delta",
-            "stats": compression_stats
+            "algorithm": "pattern_aware_optimized",
+            "original_bytes": total_original_bytes,
+            "compressed_bytes": total_compressed_bytes,
+            "ratio": compression_ratio
         }
     }
     
     return compressed_structure
+
+def decompress_timestamps(ts_data: Dict) -> List[int]:
+    """Decompress timestamps from optimized format."""
+    method = ts_data.get("method", "empty")
+    
+    if method == "empty":
+        return []
+    elif method == "single":
+        return [ts_data["value"]]
+    elif method == "regular":
+        # Regular intervals
+        start = ts_data["start"]
+        interval = ts_data["interval"] 
+        count = ts_data["count"]
+        return [start + i * interval for i in range(count)]
+    elif method == "delta":
+        # Delta encoding
+        start = ts_data["start"]
+        deltas = ts_data["deltas"]
+        timestamps = [start]
+        for delta in deltas:
+            timestamps.append(timestamps[-1] + delta)
+        return timestamps
+    else:
+        raise ValueError(f"Unknown timestamp method: {method}")
+
+def decompress_values(val_data: Dict) -> List[float]:
+    """Decompress values from optimized format."""
+    method = val_data.get("method", "empty")
+    
+    if method == "empty":
+        return []
+    elif method == "single":
+        return [val_data["value"]]
+    elif method == "constant":
+        # All values are the same
+        return [val_data["value"]] * val_data["count"]
+    elif method == "sparse":
+        # Sparse representation with non-zero indices
+        result = [0.0] * val_data["length"]
+        for idx, value in val_data["non_zero"]:
+            result[idx] = value
+        return result
+    elif method == "sparse_optimized":
+        # Sparse representation with delta-compressed indices
+        result = [0.0] * val_data["length"]
+        
+        # Reconstruct indices from deltas
+        indices = [val_data["first_index"]]
+        for delta in val_data["index_deltas"]:
+            indices.append(indices[-1] + delta)
+        
+        # Fill in non-zero values
+        for i, value in enumerate(val_data["values"]):
+            result[indices[i]] = value
+        
+        return result
+    elif method == "linear":
+        # Linear progression
+        start = val_data["start"]
+        delta = val_data["delta"]
+        count = val_data["count"]
+        return [start + i * delta for i in range(count)]
+    elif method == "repeat":
+        # Repeating pattern
+        pattern = val_data["pattern"]
+        pattern_len = val_data["pattern_len"]
+        total_count = val_data["total_count"]
+        
+        result = []
+        for i in range(total_count):
+            result.append(pattern[i % pattern_len])
+        return result
+    elif method == "quantized":
+        # Quantized values
+        unique_values = val_data["unique_values"]
+        indices = val_data["indices"]
+        return [unique_values[idx] for idx in indices]
+    elif method == "xor":
+        # XOR compression
+        expected_count = val_data.get("count", None)
+        return xor_decode_floats(val_data["first"], val_data["data"], expected_count)
+    elif method == "delta":
+        # Delta compression
+        deltas_bytes = val_data["data"]
+        num_deltas = len(deltas_bytes) // 8
+        deltas = [struct.unpack('>d', deltas_bytes[i*8:(i+1)*8])[0] for i in range(num_deltas)]
+        
+        values = [val_data["first"]]
+        for delta in deltas:
+            values.append(values[-1] + delta)
+        return values
+    else:
+        raise ValueError(f"Unknown value method: {method}")
 
 def verify_compressed_data(original_data: Dict[str, Any], compressed_data: Dict[str, Any]) -> None:
     """Verify that compressed data can be correctly decompressed."""
@@ -200,23 +423,12 @@ def verify_compressed_data(original_data: Dict[str, Any], compressed_data: Dict[
         
         # Verify timestamps
         try:
-            ts_data = compressed["timestamps"]
-            if ts_data["rle_double_deltas"]:
-                # Decompress RLE data
-                decompressed_rle = decompress_integer_list(ts_data["compressed_rle"])
-                rle_pairs = [(decompressed_rle[i], decompressed_rle[i+1]) for i in range(0, len(decompressed_rle), 2)]
-                double_deltas = run_length_decode(rle_pairs)
-            else:
-                double_deltas = []
-            
-            decoded_timestamps = delta_decode_timestamps(
-                ts_data["initial"], 
-                ts_data["first_delta"], 
-                double_deltas
-            )
+            decoded_timestamps = decompress_timestamps(compressed["timestamps"])
             
             if decoded_timestamps != original["timestamps"]:
                 print(f"  ❌ Timestamp mismatch in series {series_id}")
+                print(f"      Expected: {len(original['timestamps'])} items")
+                print(f"      Got: {len(decoded_timestamps)} items")
                 verification_errors += 1
         except Exception as e:
             print(f"  ❌ Timestamp decompression error in series {series_id}: {e}")
@@ -224,17 +436,7 @@ def verify_compressed_data(original_data: Dict[str, Any], compressed_data: Dict[
         
         # Verify values
         try:
-            val_data = compressed["values"]
-            expected_count = val_data.get("expected_count", 0)
-            
-            if val_data["method"] == "xor":
-                decoded_values = xor_decode_floats(val_data["first_value"], val_data["compressed_data"], expected_count)
-            elif val_data["method"] == "delta":
-                decoded_values = simple_delta_decode_floats(val_data["first_value"], val_data["compressed_data"], expected_count)
-            elif val_data["method"] == "uncompressed":
-                decoded_values = [val_data["first_value"]] if val_data["first_value"] != 0.0 else []
-            else:
-                decoded_values = [val_data["first_value"]] if val_data["first_value"] != 0.0 else []
+            decoded_values = decompress_values(compressed["values"])
             
             # Compare with tolerance for floating point precision
             if len(decoded_values) != len(original["values"]):
