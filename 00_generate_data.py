@@ -128,26 +128,6 @@ def main():
     print(f"\n📁 Dataset file: {raw_data_file}")
     print(f"📏 Dataset size: {file_size:,} bytes ({file_size / 1024 / 1024:.2f} MB)")
     
-    # Also save as a Python module for easy importing
-    dataset_module_file = os.path.join(output_dir, "dataset.py")
-    print(f"📝 Updating Python module: {dataset_module_file}")
-    with open(dataset_module_file, "w") as f:
-        f.write("# Generated dataset for metrics storage demonstration\n")
-        if data_generator == "real":
-            f.write("# Real monitoring data from westermo/test-system-performance-dataset\n\n")
-        else:
-            f.write("# Enhanced data generation with infrastructure correlation and value quantization\n\n")
-        f.write("DATASET = [\n")
-        
-        for i, point in enumerate(data_points):
-            if i > 0:
-                f.write(",\n")
-            f.write(f"    {point!r}")
-        
-        f.write("\n]\n")
-    
-    print(f"📏 Python module size: {os.path.getsize(dataset_module_file):,} bytes")
-    
     print(f"\n✅ Phase 0 completed successfully!")
     print(f"📊 Final dataset: {len(data_points):,} data points across {len(set((p['metric_name'], tuple(sorted(p['labels'].items()))) for p in data_points))} unique series")
     
