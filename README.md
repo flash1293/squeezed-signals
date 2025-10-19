@@ -1,19 +1,18 @@
 # Squeezed Signals: Metrics Storage Engine Evolution
 
-A comprehensive demonstration of how time-series metrics storage formats evolve from simple JSON to highly optimized binary formats. This project shows the journey from **81MB** of human-readable JSON down to **1.8MB** of hybrid compressed data - a **45x compression ratio** - while maintaining full data fidelity.
+A comprehensive demonstration of how time-series metrics storage formats evolve from simple JSON to highly optimized binary formats with compression. This project shows the journey from **7.8MB** of human-readable JSON down to **0.18MB** of compressed specialized data - a **44.3x compression ratio** - while maintaining full data fidelity.
 
 ## 🎯 Overview
 
-This project demonstrates the evolution of metrics storage through 8 distinct phases, each building upon the previous to show different optimization techniques:
+This project demonstrates the evolution of metrics storage through 7 distinct phases, showing how general-purpose compression (zstd) integrates with structural optimizations:
 
 1. **NDJSON Baseline** - Human-readable but inefficient
 2. **CBOR Encoding** - Better binary serialization  
-3. **Binary Table** - String deduplication with fixed-width encoding
-4. **Columnar Storage** - Grouping by time series 
-5. **Compression Tricks** - Specialized time-series algorithms
-6. **Downsampling** - Long-term storage with aggregation
-7. **General-Purpose Compression** - zstd as comparison baseline
-8. **Hybrid Compression** - Ultimate compression combining tricks + zstd
+3. **CBOR + zstd** - First compression layer
+4. **Binary Table + zstd** - String deduplication with compression
+5. **Columnar Storage + zstd** - Grouping by time series with compression
+6. **Compression Tricks + zstd** - Specialized algorithms with compression
+7. **Downsampling + zstd** - Multi-resolution storage with compression
 
 ## 🚀 Quick Start
 
@@ -39,16 +38,14 @@ With enhanced dataset (48,000 points):
 
 | Phase | Format | Size | Compression | Key Innovation |
 |-------|--------|------|-------------|----------------|
-| 1 | NDJSON | 81.0 MB | 1.0x | Human readable baseline |
-| 2 | CBOR | 64.0 MB | 1.27x | Binary encoding |
-| 3 | Binary Table | 16.7 MB | 4.85x | String deduplication (9,507x) |
-| 4 | Columnar | 6.7 MB | 12.1x | Series grouping |
-| 5 | **Compression Tricks** | **4.8 MB** | **16.9x** | **Temporal algorithms** |
-| 6 | Downsampling | 0.30 MB | 270x | Multi-resolution storage |
-| 7 | NDJSON (zstd) | 4.3 MB | 18.8x | General-purpose compression |
-| 8 | **🏆 Hybrid (Tricks+zstd)** | **1.8 MB** | **45.0x** | **Ultimate compression** |
+| 1 | NDJSON | 7.8 MB | 1.0x | Human readable baseline |
+| 2 | CBOR | 6.2 MB | 1.3x | Binary encoding |
+| 3 | CBOR + zstd | 0.39 MB | 19.8x | First compression layer |
+| 4 | Binary Table + zstd | 0.32 MB | 24.5x | String deduplication + compression |
+| 5 | Columnar + zstd | 0.22 MB | 35.3x | Series grouping + compression |
+| 6 | **Compression Tricks + zstd** | **0.18 MB** | **44.3x** | **Specialized algorithms + compression** |
 
-**🎯 Key Achievement: 45x compression** with Phase 8 Hybrid Compression (ultimate ratio combining specialized algorithms with zstd)
+**🎯 Key Achievement: 44.3x compression** with specialized time-series algorithms + zstd compression applied throughout the pipeline
 
 ## 🔬 Data Generation Options
 
@@ -152,15 +149,6 @@ rm output/raw_dataset.pkl  # Force regeneration
 - ✅ Can compete with specialized techniques
 - ❌ Requires decompression for any access
 
-### Phase 8: Hybrid Compression (Tricks + zstd)
-- ✅ Ultimate compression ratio (45x over baseline)
-- ✅ Leverages both specialized and general-purpose algorithms
-- ✅ 2.7x improvement over already-compressed Phase 5 data
-- ✅ Production-ready zstd format for final storage
-- ❌ Double compression overhead (Phase 5 + zstd)
-- ❌ Complex two-stage decompression required
-- ❌ Higher computational cost for read/write operations
-
 ## 🔧 Configuration Options
 
 ```bash
@@ -178,12 +166,11 @@ squeezed-signals/
 ├── 00_generate_data.py           # Realistic time-series data generation
 ├── 01_ndjson_storage.py          # Phase 1: NDJSON baseline
 ├── 02_cbor_storage.py            # Phase 2: CBOR encoding
-├── 03_binary_table.py            # Phase 3: Binary table format
-├── 04_columnar_storage.py        # Phase 4: Columnar grouping
-├── 05_compression_tricks.py      # Phase 5: Specialized algorithms
-├── 06_downsampling_storage.py    # Phase 6: Multi-resolution storage
-├── 07_general_compression.py     # Phase 7: zstd comparison
-├── 08_hybrid_compression.py      # Phase 8: Ultimate hybrid compression
+├── 03_cbor_zstd.py               # Phase 3: CBOR + zstd compression
+├── 04_binary_table.py            # Phase 4: Binary table + zstd
+├── 05_columnar_storage.py        # Phase 5: Columnar grouping + zstd
+├── 06_compression_tricks.py      # Phase 6: Specialized algorithms + zstd
+├── 07_downsampling_storage.py    # Phase 7: Multi-resolution storage + zstd
 ├── main.py                       # Orchestration script
 ├── lib/
 │   ├── data_generator.py         # Realistic data patterns
@@ -216,11 +203,11 @@ The data generator creates realistic time-series patterns:
 ## 💡 Key Insights
 
 ### Compression Technique Hierarchy
-1. **Structural optimization** (row → columnar): **12.1x** compression
-2. **String deduplication** (binary table): **4.9x** compression with fast access
-3. **Specialized algorithms** (XOR/delta): **16.9x** with temporal patterns
-4. **General-purpose** (zstd): **18.8x** with zero code changes
-5. **🏆 Hybrid approach** (specialized + zstd): **45.0x** ultimate compression
+1. **Binary encoding** (JSON → CBOR): **1.3x** compression
+2. **General-purpose compression** (CBOR + zstd): **19.8x** with minimal changes
+3. **String deduplication + zstd** (binary table): **24.5x** compression with structural optimization
+4. **Columnar organization + zstd** (series grouping): **35.3x** by eliminating redundancy
+5. **🏆 Specialized algorithms + zstd** (temporal patterns): **44.3x** ultimate compression
 
 ### Data Pattern Exploitation
 - **Low label cardinality**: 40 unique strings → 8,658x string compression
@@ -236,10 +223,10 @@ Time-series databases independently converged on similar techniques:
 - **Apache Parquet**: Dictionary encoding + columnar layout
 
 ### The Simplicity vs. Sophistication Trade-off
-- **zstd (18.8x)**: Excellent results with zero algorithm complexity
-- **Specialized (16.9x)**: Good compression with custom temporal algorithms
-- **Hybrid (45.0x)**: Ultimate compression combining specialized + general-purpose
-- **Downsampling (270x)**: Essential for long-term retention, but lossy
+- **CBOR + zstd (19.8x)**: Excellent results with minimal code changes
+- **Structural + zstd (24.5x)**: Good balance of optimization and compression
+- **Columnar + zstd (35.3x)**: Better structure with compression benefits
+- **Specialized + zstd (44.3x)**: Ultimate compression combining domain knowledge with general-purpose algorithms
 
 ## 🌍 Real-World Applications
 
@@ -284,6 +271,6 @@ python 02_cbor_storage.py
 
 ## 🎉 Results
 
-The complete demonstration shows how thoughtful storage format evolution can achieve **45x compression** while maintaining full data fidelity - essential for cost-effective metrics storage at scale. Phase 8 hybrid compression represents the ultimate combination of specialized time-series algorithms with general-purpose compression, achieving maximum space efficiency.
+The complete demonstration shows how thoughtful storage format evolution can achieve **44.3x compression** while maintaining full data fidelity - essential for cost-effective metrics storage at scale. The key insight is that general-purpose compression (zstd) works best when combined with structural optimizations and specialized algorithms, rather than as a final step.
 
 The enhanced data generation demonstrates that understanding and leveraging natural patterns in monitoring data can provide substantial compression improvements without sacrificing realism.

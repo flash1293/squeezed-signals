@@ -83,11 +83,10 @@ def collect_file_sizes() -> Dict[str, int]:
         "raw_dataset.pkl": "Raw Dataset (Pickle)",
         "metrics.ndjson": "Phase 1: NDJSON",
         "metrics.cbor": "Phase 2: CBOR",
-        "metrics.bintable.bin": "Phase 3: Binary Table",
-        "metrics.columnar.msgpack": "Phase 4: Columnar",
-        "metrics.compressed.msgpack": "Phase 5: Compression Tricks",
-        "metrics.ndjson.zst": "Phase 7: NDJSON (zstd)",
-        "metrics.hybrid.zst": "Phase 8: Hybrid Compression",
+        "metrics.cbor.zst": "Phase 3: CBOR + zstd",
+        "metrics.bintable.zst": "Phase 4: Binary Table + zstd",
+        "metrics.columnar.zst": "Phase 5: Columnar + zstd", 
+        "metrics.compressed.zst": "Phase 6: Compression Tricks + zstd",
     }
     
     file_sizes = {}
@@ -99,10 +98,10 @@ def collect_file_sizes() -> Dict[str, int]:
     
     # Collect downsampled files
     for filename in os.listdir("output"):
-        if filename.startswith("metrics.downsampled.") and filename.endswith(".msgpack"):
+        if filename.startswith("metrics.downsampled.") and filename.endswith(".zst"):
             filepath = os.path.join("output", filename)
-            interval = filename.replace("metrics.downsampled.", "").replace(".msgpack", "")
-            description = f"Phase 6: Downsampled ({interval})"
+            interval = filename.replace("metrics.downsampled.", "").replace(".zst", "")
+            description = f"Phase 7: Downsampled ({interval})"
             file_sizes[description] = os.path.getsize(filepath)
     
     return file_sizes
@@ -201,12 +200,11 @@ def main():
         (0, "Data Generation", "00_generate_data.py"),
         (1, "Baseline NDJSON Storage", "01_ndjson_storage.py"),
         (2, "CBOR Storage", "02_cbor_storage.py"),
-        (3, "Binary Table Format", "03_binary_table.py"),
-        (4, "Columnar Storage", "04_columnar_storage.py"),
-        (5, "Compression Tricks", "05_compression_tricks.py"),
-        (6, "Downsampling Storage", "06_downsampling_storage.py"),
-        (7, "General-Purpose Compression", "07_general_compression.py"),
-        (8, "Hybrid Compression", "08_hybrid_compression.py"),
+        (3, "CBOR + zstd Compression", "03_cbor_zstd.py"),
+        (4, "Binary Table + zstd", "04_binary_table.py"),
+        (5, "Columnar Storage + zstd", "05_columnar_storage.py"),
+        (6, "Compression Tricks + zstd", "06_compression_tricks.py"),
+        (7, "Downsampling + zstd", "07_downsampling_storage.py"),
     ]
     
     phase_results = []
