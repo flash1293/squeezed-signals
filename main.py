@@ -180,8 +180,8 @@ def main():
     """Main function to orchestrate all phases."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Run Metrics Storage Engine Evolution Demonstration')
-    parser.add_argument('--size', choices=['small', 'big'], default='small',
-                       help='Dataset size: small (50k points) or big (5M points). Default: small')
+    parser.add_argument('--size', choices=['small', 'big', 'huge'], default='small',
+                       help='Dataset size: small (50k points), big (5M points), or huge (100M points). Default: small')
     args = parser.parse_args()
     
     print(f"🚀 Starting Metrics Storage Engine Evolution Demonstration")

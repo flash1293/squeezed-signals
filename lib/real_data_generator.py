@@ -177,7 +177,7 @@ def generate_real_metric_data(
     Generate time-series data from real performance monitoring dataset.
     
     Args:
-        dataset_size: "small" (50k points) or "big" (500k points)
+        dataset_size: "small" (50k points), "big" (500k points), or "huge" (10M points)
         max_files: Maximum number of CSV files to process (None for all)
         
     Returns:
@@ -191,8 +191,11 @@ def generate_real_metric_data(
     elif dataset_size == "big":
         target_points = 500000
         max_files = max_files or 50
+    elif dataset_size == "huge":
+        target_points = 10000000  # 10M points for huge dataset
+        max_files = max_files or 200  # Process more files for huge dataset
     else:
-        raise ValueError("dataset_size must be 'small' or 'big'")
+        raise ValueError("dataset_size must be 'small', 'big', or 'huge'")
     
     print(f"🎯 Target: ~{target_points:,} data points from real monitoring data")
     

@@ -29,7 +29,8 @@ python main.py --size small
 DATA_GENERATOR=real python main.py --size small
 
 # Generate larger datasets
-DATASET_SIZE=big python main.py --size big
+python main.py --size big      # 5M points
+python main.py --size huge     # 100M points (requires significant memory)
 ```
 
 ## 📊 Results Preview
@@ -165,11 +166,14 @@ rm output/raw_dataset.pkl  # Force regeneration
 ## 🔧 Configuration Options
 
 ```bash
-# Small dataset: 46,000 points (good for development/testing)
+# Small dataset: 50,000 points (good for development/testing)
 python main.py --size small
 
 # Big dataset: 5,000,000 points (realistic production scale)
 python main.py --size big
+
+# Huge dataset: 100,000,000 points (compression benchmarking - requires 8-16GB RAM)
+python main.py --size huge
 ```
 
 ## 📁 Project Structure

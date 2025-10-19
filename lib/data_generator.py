@@ -15,7 +15,7 @@ def generate_metric_data(
     num_points_per_series: int = 1000,  # Will be overridden by dataset_size parameter
     base_interval: int = 15,   # seconds
     jitter_range: int = 2,     # seconds (reduced for regularity)
-    dataset_size: str = "small",  # "small" or "big"
+    dataset_size: str = "small",  # "small", "big", or "huge"
     data_generator: str = "synthetic"  # "synthetic" or "real"
 ) -> List[Dict[str, Any]]:
     """
@@ -26,7 +26,7 @@ def generate_metric_data(
         num_points_per_series: Number of data points per series (overridden by dataset_size for synthetic)
         base_interval: Base scrape interval in seconds (synthetic only)
         jitter_range: Random jitter range in seconds (synthetic only)
-        dataset_size: "small" or "big" - controls data volume
+        dataset_size: "small", "big", or "huge" - controls data volume
         data_generator: "synthetic" (enhanced patterns) or "real" (actual performance data)
         
     Returns:
@@ -64,8 +64,11 @@ def _generate_synthetic_metric_data(
     elif dataset_size == "big":
         num_series = 500
         num_points_per_series = 10000
+    elif dataset_size == "huge":
+        num_series = 10000
+        num_points_per_series = 10000
     else:
-        raise ValueError("dataset_size must be 'small' or 'big'")
+        raise ValueError("dataset_size must be 'small', 'big', or 'huge'")
     
     # Use medium regularity settings for good compression without being unrealistic
     jitter_factor = 0.5  # Reduce timestamp jitter
