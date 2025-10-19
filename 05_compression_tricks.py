@@ -82,37 +82,67 @@ def compress_columnar_data(columnar_data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             compressed_timestamps = {"initial": 0, "first_delta": 0, "rle_double_deltas": [], "compressed_rle": b""}
         
-        # Compress values using XOR encoding (Gorilla-like)
+        # Compress values using adaptive compression (XOR vs Delta)
         if len(values) >= 1:
+            # Try both XOR and delta encoding, choose the best
+            xor_result = None
+            delta_result = None
+            
             try:
-                first_value, xor_encoded = xor_encode_floats(values)
-                compressed_values = {
+                first_value, xor_compressed = xor_encode_floats(values)
+                xor_result = {
                     "method": "xor",
                     "first_value": first_value,
-                    "xor_encoded": xor_encoded
+                    "compressed_data": xor_compressed,
+                    "size": len(xor_compressed)
                 }
             except Exception as e:
-                # Fall back to simple delta encoding if XOR fails
-                print(f"    XOR encoding failed for series {series_id}, using delta encoding: {e}")
-                first_value, deltas = simple_delta_encode_floats(values)
-                compressed_values = {
+                print(f"    XOR encoding failed for series {series_id}: {e}")
+            
+            try:
+                first_value, delta_compressed = simple_delta_encode_floats(values)
+                delta_result = {
                     "method": "delta",
                     "first_value": first_value,
-                    "deltas": deltas
+                    "compressed_data": delta_compressed,
+                    "size": len(delta_compressed)
                 }
+            except Exception as e:
+                print(f"    Delta encoding failed for series {series_id}: {e}")
+            
+            # Choose the best compression method
+            if xor_result and delta_result:
+                if xor_result["size"] <= delta_result["size"]:
+                    compressed_values = xor_result
+                    print(f"    Using XOR compression: {xor_result['size']} bytes vs delta {delta_result['size']} bytes")
+                else:
+                    compressed_values = delta_result
+                    print(f"    Using delta compression: {delta_result['size']} bytes vs XOR {xor_result['size']} bytes")
+            elif xor_result:
+                compressed_values = xor_result
+                print(f"    Using XOR compression: {xor_result['size']} bytes")
+            elif delta_result:
+                compressed_values = delta_result
+                print(f"    Using delta compression: {delta_result['size']} bytes")
+            else:
+                # Fallback to uncompressed
+                compressed_values = {
+                    "method": "uncompressed",
+                    "first_value": values[0] if values else 0.0,
+                    "compressed_data": b'',
+                    "size": len(values) * 8
+                }
+                print(f"    Using uncompressed fallback: {compressed_values['size']} bytes")
             
             # Calculate compression statistics for values
             original_val_bytes = len(values) * 8  # 8 bytes per float64
-            if compressed_values["method"] == "xor":
-                compressed_val_bytes = 8 + len(compressed_values["xor_encoded"]) * 8
-            else:
-                compressed_val_bytes = 8 + len(compressed_values["deltas"]) * 8
+            compressed_val_bytes = 8 + compressed_values["size"]  # first_value + compressed_data
             
             compression_stats["original_values_bytes"] += original_val_bytes
             compression_stats["compressed_values_bytes"] += compressed_val_bytes
             
         else:
-            compressed_values = {"method": "empty", "first_value": 0.0, "data": []}
+            compressed_values = {"method": "empty", "first_value": 0.0, "compressed_data": b'', "size": 0}
         
         compressed_series_data[series_id] = {
             "timestamps": compressed_timestamps,
@@ -191,9 +221,11 @@ def verify_compressed_data(original_data: Dict[str, Any], compressed_data: Dict[
         try:
             val_data = compressed["values"]
             if val_data["method"] == "xor":
-                decoded_values = xor_decode_floats(val_data["first_value"], val_data["xor_encoded"])
+                decoded_values = xor_decode_floats(val_data["first_value"], val_data["compressed_data"])
             elif val_data["method"] == "delta":
-                decoded_values = simple_delta_decode_floats(val_data["first_value"], val_data["deltas"])
+                decoded_values = simple_delta_decode_floats(val_data["first_value"], val_data["compressed_data"])
+            elif val_data["method"] == "uncompressed":
+                decoded_values = [val_data["first_value"]] if val_data["first_value"] != 0.0 else []
             else:
                 decoded_values = [val_data["first_value"]] if val_data["first_value"] != 0.0 else []
             
