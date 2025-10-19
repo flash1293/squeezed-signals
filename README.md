@@ -4,7 +4,7 @@ A comprehensive demonstration of how time-series metrics storage formats evolve 
 
 ## 🎯 Overview
 
-This project demonstrates the evolution of metrics storage through 7 distinct phases, each building upon the previous to show different optimization techniques:
+This project demonstrates the evolution of metrics storage through 8 distinct phases, each building upon the previous to show different optimization techniques:
 
 1. **NDJSON Baseline** - Human-readable but inefficient
 2. **CBOR Encoding** - Better binary serialization  
@@ -13,6 +13,7 @@ This project demonstrates the evolution of metrics storage through 7 distinct ph
 5. **Compression Tricks** - Specialized time-series algorithms
 6. **Downsampling** - Long-term storage with aggregation
 7. **General-Purpose Compression** - zstd as comparison baseline
+8. **Hybrid Compression** - Ultimate compression combining tricks + zstd
 
 ## 🚀 Quick Start
 

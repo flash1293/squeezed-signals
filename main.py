@@ -87,6 +87,7 @@ def collect_file_sizes() -> Dict[str, int]:
         "metrics.columnar.msgpack": "Phase 4: Columnar",
         "metrics.compressed.msgpack": "Phase 5: Compression Tricks",
         "metrics.ndjson.zst": "Phase 7: NDJSON (zstd)",
+        "metrics.hybrid.zst": "Phase 8: Hybrid Compression",
     }
     
     file_sizes = {}
@@ -205,6 +206,7 @@ def main():
         (5, "Compression Tricks", "05_compression_tricks.py"),
         (6, "Downsampling Storage", "06_downsampling_storage.py"),
         (7, "General-Purpose Compression", "07_general_compression.py"),
+        (8, "Hybrid Compression", "08_hybrid_compression.py"),
     ]
     
     phase_results = []
