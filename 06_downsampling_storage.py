@@ -216,7 +216,7 @@ def analyze_downsampling_efficiency(original_data: List[Dict[str, Any]], downsam
 
 def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]], output_dir: str) -> Dict[int, int]:
     """
-    Store downsampled datasets using the most efficient format from previous phases.
+    Store downsampled datasets using the compressed format from Phase 5.
     
     Args:
         downsampled_datasets: Dictionary of interval to downsampled data
@@ -225,7 +225,15 @@ def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]]
     Returns:
         Dictionary mapping interval to file size
     """
-    print(f"\nStoring downsampled data using efficient binary format...")
+    print(f"\nStoring downsampled data using Phase 5 compression techniques...")
+    print("(Building on columnar + specialized compression from previous phases)")
+    
+    # Import compression functions from Phase 5
+    import sys
+    from pathlib import Path
+    lib_path = Path(__file__).parent / "lib"
+    sys.path.insert(0, str(lib_path))
+    from encoders import delta_encode_timestamps, xor_encode_floats, run_length_encode
     
     file_sizes = {}
     
@@ -233,61 +241,75 @@ def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]]
         if not ds_data:
             continue
         
-        # Convert to columnar format (reuse logic from Phase 2)
-        from lib.data_generator import print_data_stats
-        
         print(f"  Processing {interval}s interval data...")
         
-        # Create series dictionary
+        # Convert to columnar format first
         series_metadata = {}
         series_data = defaultdict(lambda: {"timestamps": [], "values": []})
         series_id_map = {}
         next_series_id = 0
         
         for point in ds_data:
-            # Create series key including aggregate info
-            agg_info = point.get("aggregate_info", {})
-            series_key = f"{point['metric_name']}{{{','.join(f'{k}={v}' for k, v in sorted(point['labels'].items()))}}}"
+            # Create series key
+            series_key = (point["metric_name"], tuple(sorted(point["labels"].items())))
             
             if series_key not in series_id_map:
                 series_id = str(next_series_id)
                 series_id_map[series_key] = series_id
-                series_metadata[series_id] = {
-                    "name": point["metric_name"],
-                    "labels": point["labels"].copy(),
-                    "aggregate_info": agg_info
-                }
                 next_series_id += 1
-            else:
-                series_id = series_id_map[series_key]
+                
+                series_metadata[series_id] = {
+                    "metric_name": point["metric_name"],
+                    "labels": point["labels"]
+                }
             
+            series_id = series_id_map[series_key]
             series_data[series_id]["timestamps"].append(point["timestamp"])
             series_data[series_id]["values"].append(point["value"])
         
-        # Sort within each series
-        for series_id, data in series_data.items():
-            sorted_pairs = sorted(zip(data["timestamps"], data["values"]))
-            data["timestamps"] = [ts for ts, _ in sorted_pairs]
-            data["values"] = [val for _, val in sorted_pairs]
+        # Now apply Phase 5 compression techniques to each series
+        compressed_series_data = {}
         
-        # Create the structure
-        downsampled_structure = {
-            "series_metadata": series_metadata,
-            "series_data": dict(series_data),
-            "downsampling_info": {
-                "interval_seconds": interval,
-                "original_data_count": "unknown",
-                "aggregates_included": list(set(
-                    point.get("aggregate_info", {}).get("aggregate_type", "unknown") 
-                    for point in ds_data[:100]  # Sample
-                ))
+        for series_id, data in series_data.items():
+            timestamps = sorted(data["timestamps"])
+            values = data["values"]
+            
+            # Apply timestamp compression (double-delta encoding)
+            if len(timestamps) >= 2:
+                base_ts, first_delta, deltas = delta_encode_timestamps(timestamps)
+                compressed_timestamps = {
+                    "base_timestamp": base_ts,
+                    "first_delta": first_delta,
+                    "deltas": run_length_encode(deltas)  # Further compress with RLE
+                }
+            else:
+                compressed_timestamps = timestamps
+            
+            # Apply value compression (XOR encoding)
+            if len(values) >= 2:
+                base_value, encoded_values = xor_encode_floats(values)
+                compressed_values = {
+                    "base_value": base_value,
+                    "encoded": run_length_encode(encoded_values)  # Further compress with RLE
+                }
+            else:
+                compressed_values = values
+            
+            compressed_series_data[series_id] = {
+                "timestamps": compressed_timestamps,
+                "values": compressed_values
             }
+        
+        # Create final compressed structure (same as Phase 5)
+        compressed_data = {
+            "series_metadata": series_metadata,
+            "series_data": compressed_series_data
         }
         
-        # Store as MessagePack
+        # Store using MessagePack (same as Phase 5)
         output_file = os.path.join(output_dir, f"metrics.downsampled.{interval}s.msgpack")
         with open(output_file, "wb") as f:
-            msgpack.dump(downsampled_structure, f, use_bin_type=True)
+            msgpack.pack(compressed_data, f)
         
         file_size = os.path.getsize(output_file)
         file_sizes[interval] = file_size
@@ -295,6 +317,7 @@ def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]]
         print(f"    Stored {interval}s data: {file_size:,} bytes ({len(ds_data):,} points)")
     
     return file_sizes
+
 
 def demonstrate_query_efficiency(original_data: List[Dict[str, Any]], downsampled_datasets: Dict[int, List[Dict[str, Any]]]) -> None:
     """Demonstrate how downsampling improves query efficiency."""
@@ -332,16 +355,24 @@ def main():
     print("Phase 6: Downsampling for Long-term Storage")
     print("=" * 60)
     
-    # Load original dataset
-    raw_data_file = "output/raw_dataset.pkl"
-    if not os.path.exists(raw_data_file):
-        print(f"❌ Error: {raw_data_file} not found. Please run 00_generate_data.py first.")
+    # Verify that Phase 5 exists (we build on its techniques)
+    compressed_file = "output/metrics.compressed.msgpack"
+    if not os.path.exists(compressed_file):
+        print(f"❌ Error: {compressed_file} not found. Please run 05_compression_tricks.py first.")
         return
     
-    with open(raw_data_file, "rb") as f:
-        original_data = pickle.load(f)
+    # For simplicity of demonstration, we'll use the original data for downsampling
+    # but apply Phase 5's compression techniques to the downsampled results
+    print("Loading original dataset for downsampling (will apply Phase 5 compression to results)...")
     
-    print(f"Loaded original dataset: {len(original_data):,} data points")
+    # Load original dataset for downsampling
+    try:
+        from lib.data_generator import load_dataset
+        original_data = load_dataset()
+        print(f"Loaded {len(original_data):,} data points for downsampling")
+    except Exception as e:
+        print(f"❌ Error loading dataset: {e}")
+        return 1
     
     # Define downsampling intervals (in seconds)
     intervals = [60, 300, 900, 3600]  # 1min, 5min, 15min, 1hour
@@ -367,11 +398,12 @@ def main():
     print(f"\n📊 Downsampling Storage Results:")
     total_downsampled_size = sum(file_sizes.values())
     print(f"  Total downsampled storage: {total_downsampled_size:,} bytes")
+    print(f"  Uses Phase 5 compression techniques: columnar + specialized algorithms")
     
     if high_res_size:
         storage_ratio = high_res_size / total_downsampled_size if total_downsampled_size > 0 else float('inf')
-        print(f"  vs High-resolution compressed: {storage_ratio:.2f}x more efficient")
-        print(f"  High-res: {high_res_size:,} bytes vs Downsampled: {total_downsampled_size:,} bytes")
+        print(f"  vs High-resolution compressed (Phase 5): {storage_ratio:.2f}x more efficient")
+        print(f"  Phase 5: {high_res_size:,} bytes vs Phase 6: {total_downsampled_size:,} bytes")
     
     print(f"\n  Individual interval files:")
     for interval, size in sorted(file_sizes.items()):

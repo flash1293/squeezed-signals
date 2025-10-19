@@ -231,10 +231,10 @@ def main():
     print("Phase 5: Compression Tricks")
     print("=" * 60)
     
-    # Load the columnar data from Phase 2
+    # Load the columnar data from Phase 4
     columnar_file = "output/metrics.columnar.msgpack"
     if not os.path.exists(columnar_file):
-        print(f"❌ Error: {columnar_file} not found. Please run 02_columnar_storage.py first.")
+        print(f"❌ Error: {columnar_file} not found. Please run 04_columnar_storage.py first.")
         return
     
     with open(columnar_file, "rb") as f:
@@ -243,7 +243,7 @@ def main():
     series_count = len(columnar_data["series_metadata"])
     total_points = sum(len(series["timestamps"]) for series in columnar_data["series_data"].values())
     
-    print(f"Loaded columnar data: {series_count} series, {total_points:,} total points")
+    print(f"Loaded columnar data from Phase 4: {series_count} series, {total_points:,} total points")
     
     # Apply compression
     compressed_data = compress_columnar_data(columnar_data)
