@@ -11,23 +11,35 @@ import math
 from typing import List, Dict, Any
 
 def generate_metric_data(
-    num_series: int = 500,     # Increased from 50 to 500
-    num_points_per_series: int = 10000,  # Increased from 1000 to 10000  
-    base_interval: int = 15,  # seconds
-    jitter_range: int = 5     # seconds
+    num_series: int = 50,      # Will be overridden by dataset_size parameter
+    num_points_per_series: int = 1000,  # Will be overridden by dataset_size parameter
+    base_interval: int = 15,   # seconds
+    jitter_range: int = 5,     # seconds
+    dataset_size: str = "small"  # "small" or "big"
 ) -> List[Dict[str, Any]]:
     """
     Generate time-series metric data points.
     
     Args:
-        num_series: Number of unique time series to generate
-        num_points_per_series: Number of data points per series
+        num_series: Number of unique time series (overridden by dataset_size)
+        num_points_per_series: Number of data points per series (overridden by dataset_size)
         base_interval: Base scrape interval in seconds
         jitter_range: Random jitter range in seconds
+        dataset_size: "small" (50 series x 1k points) or "big" (500 series x 10k points)
         
     Returns:
         List of data point dictionaries
     """
+    
+    # Override parameters based on dataset size
+    if dataset_size == "small":
+        num_series = 50
+        num_points_per_series = 1000
+    elif dataset_size == "big":
+        num_series = 500
+        num_points_per_series = 10000
+    else:
+        raise ValueError("dataset_size must be 'small' or 'big'")
     
     # Define metric names and possible label values
     metric_names = [
@@ -171,6 +183,10 @@ def generate_metric_data(
                 # Ensure percentages stay within bounds more strictly
                 if "percent" in series["name"]:
                     value = max(0, min(100, value))
+                
+                # Ensure certain metrics are integers
+                if "active_connections" in series["name"] or "queue_size" in series["name"]:
+                    value = max(0, int(round(value)))
             
             data_point = {
                 "timestamp": timestamp,

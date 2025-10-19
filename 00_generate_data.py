@@ -17,10 +17,12 @@ def main():
     print("Phase 0: Generating Time-Series Dataset")
     print("=" * 60)
     
+    # Get dataset size from environment variable or default to small
+    dataset_size = os.environ.get('DATASET_SIZE', 'small')
+    
     # Configuration for data generation
     config = {
-        "num_series": 500,           # Increased from 50 to 500
-        "num_points_per_series": 10000,  # Increased from 1000 to 10000
+        "dataset_size": dataset_size,   # Read from environment or default to small
         "base_interval": 15,        # Base scrape interval (seconds)
         "jitter_range": 5          # Random jitter range (seconds)
     }

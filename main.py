@@ -9,6 +9,7 @@ comparison of different storage formats and their trade-offs.
 import os
 import sys
 import time
+import argparse
 from typing import List, Dict, Any
 
 def run_phase(phase_number: int, phase_name: str, script_name: str) -> Dict[str, Any]:
@@ -82,6 +83,7 @@ def collect_file_sizes() -> Dict[str, int]:
         "raw_dataset.pkl": "Raw Dataset (Pickle)",
         "metrics.ndjson": "Phase 1: NDJSON",
         "metrics.ndjson.zst": "Phase 1: NDJSON (zstd)",
+        "metrics.bintable.bin": "Phase 1.5: Binary Table",
         "metrics.columnar.msgpack": "Phase 2: Columnar",
         "metrics.compressed.msgpack": "Phase 3: Compressed",
         "metrics.final.tsdb": "Phase 4: Custom Binary",
@@ -211,8 +213,18 @@ def print_comprehensive_summary(phase_results: List[Dict[str, Any]], file_sizes:
 
 def main():
     """Main function to orchestrate all phases."""
-    print("🚀 Starting Metrics Storage Engine Evolution Demonstration")
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Run Metrics Storage Engine Evolution Demonstration')
+    parser.add_argument('--size', choices=['small', 'big'], default='small',
+                       help='Dataset size: small (50k points) or big (5M points). Default: small')
+    args = parser.parse_args()
+    
+    print(f"🚀 Starting Metrics Storage Engine Evolution Demonstration")
+    print(f"📊 Dataset size: {args.size}")
     print(f"Working directory: {os.getcwd()}")
+    
+    # Set environment variable for dataset size
+    os.environ['DATASET_SIZE'] = args.size
     
     # Ensure output directory exists
     os.makedirs("output", exist_ok=True)
@@ -221,6 +233,7 @@ def main():
     phases = [
         (0, "Data Generation", "00_generate_data.py"),
         (1, "Baseline NDJSON Storage", "01_ndjson_storage.py"),
+        (1.5, "Binary Table Format", "01_5_binary_table.py"),
         (2, "Columnar Storage", "02_columnar_storage.py"),
         (3, "Compressed Columnar", "03_compressed_columnar.py"),
         (4, "Custom Binary Format", "04_custom_binary_format.py"),
