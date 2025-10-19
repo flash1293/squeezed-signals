@@ -1,6 +1,6 @@
 # Squeezed Signals: Metrics Storage Engine Evolution
 
-A comprehensive demonstration of how time-series metrics storage formats evolve from simple JSON to highly optimized binary formats. This project shows the journey from 8MB of human-readable JSON down to **0.13MB** of compressed columnar data - a **53x compression ratio** - while maintaining full data fidelity.
+A comprehensive demonstration of how time-series metrics storage formats evolve from simple JSON to highly optimized binary formats. This project shows the journey from **7.5MB** of human-readable JSON down to **0.25MB** of compressed columnar data - a **30.6x compression ratio** - while maintaining full data fidelity.
 
 ## 🎯 Overview
 
@@ -24,43 +24,49 @@ pip install -r requirements.txt
 
 # Run the complete demonstration
 python main.py --size small
-
-# Run with enhanced data generation for better compression
-USE_ENHANCED_GENERATOR=true REGULARITY_LEVEL=high python main.py --size small
 ```
 
 ## 📊 Results Preview
 
-### Standard Dataset (47,000 points)
+With enhanced dataset (48,000 points):
+
 | Phase | Format | Size | Compression | Key Innovation |
 |-------|--------|------|-------------|----------------|
-| 1 | NDJSON | 7.32 MB | 1.0x | Human readable baseline |
-| 4 | Columnar | 0.57 MB | 12.85x | Series grouping |
-| 5 | Compression Tricks | 0.51 MB | 14.42x | Temporal algorithms |
-| 7 | NDJSON (zstd) | 0.89 MB | 8.19x | General-purpose compression |
+| 1 | NDJSON | 7.53 MB | 1.0x | Human readable baseline |
+| 2 | CBOR | 5.92 MB | 1.27x | Binary encoding |
+| 3 | Binary Table | 1.56 MB | 4.82x | String deduplication (9,507x) |
+| 4 | Columnar | 0.54 MB | 13.93x | Series grouping |
+| 5 | **Compression Tricks** | **0.25 MB** | **30.59x** | **Temporal algorithms** |
+| 6 | Downsampling | 0.30 MB | 25.48x | Multi-resolution storage |
+| 7 | NDJSON (zstd) | 0.62 MB | 12.05x | General-purpose compression |
 
-### Enhanced Dataset (High Regularity, 47,000 points)  
-| Phase | Format | Size | Compression | Key Innovation |
-|-------|--------|------|-------------|----------------|
-| 1 | NDJSON | 6.96 MB | 1.0x | Human readable baseline |
-| 4 | Columnar | 0.50 MB | 13.89x | Series grouping |
-| 5 | **Compression Tricks** | **0.13 MB** | **53.27x** | **Optimized temporal algorithms** |
-| 7 | NDJSON (zstd) | 0.39 MB | 17.99x | General-purpose compression |
-
-**🎯 Key Achievement: 524x compression** for long-term storage (3600s downsampling)
+**🎯 Key Achievement: 486x compression** for long-term storage (3600s downsampling)
 
 ## 🔬 Enhanced Data Generation
 
-The project includes an enhanced data generator that injects realistic regularity patterns to improve compression:
+The data generator creates realistic time-series patterns that improve compression without sacrificing realism:
 
-- **Timestamp Regularity**: 100% perfect intervals vs 4.8% in standard data
-- **Value Quantization**: Smart rounding to realistic precision levels  
-- **Infrastructure Correlation**: Shared patterns across related services
-- **Compression Gains**: 3.69x better compression (53.27x vs 14.42x)
+- **Infrastructure Correlation**: Services on same platforms show shared load patterns
+- **Value Quantization**: Realistic precision levels (percentages to 1-2 decimals, latencies rounded appropriately)
+- **Timestamp Regularity**: 94.6% perfect intervals reflecting modern monitoring systems
+- **Platform Stability**: Well-managed services show reduced random variation
 
-See [Enhanced Compression Analysis](docs/enhanced-compression-analysis.md) for detailed technical analysis.
+**Compression Breakdown in Phase 5:**
+- **Timestamp compression**: 43.75x (delta-delta encoding + 94.6% zero deltas)
+- **Value compression**: 1.71x (adaptive XOR/delta with bit-level encoding)
+- **Zero delta optimization**: 94.6% perfect timestamp regularity
+- **Overall improvement**: 2.2x better than columnar storage
 
 ## 🛤️ The Evolution Journey
+
+## 📖 Technical Deep Dives
+
+- [Data Generation Deep Dive](docs/data-generation-deep-dive.md) - How realistic patterns enhance compression
+- [Phase 3: Binary Table Deep Dive](docs/phase3-binary-table-deep-dive.md) - String deduplication and fixed-width encoding
+- [Phase 5: Compression Tricks Deep Dive](docs/phase5-compression-deep-dive.md) - Temporal algorithms and bit-level optimization  
+- [Phase 6: Downsampling Deep Dive](docs/phase6-downsampling-deep-dive.md) - Multi-resolution storage strategies
+
+## 🔍 Phase Details
 
 ### Phase 1: NDJSON Baseline
 ```json
@@ -237,4 +243,6 @@ python 02_cbor_storage.py
 
 ## 🎉 Results
 
-The complete demonstration shows how thoughtful storage format evolution can achieve **13x compression** while maintaining full data fidelity - essential for cost-effective metrics storage at scale.
+The complete demonstration shows how thoughtful storage format evolution can achieve **30.6x compression** while maintaining full data fidelity - essential for cost-effective metrics storage at scale.
+
+The enhanced data generation demonstrates that understanding and leveraging natural patterns in monitoring data can provide substantial compression improvements without sacrificing realism.
