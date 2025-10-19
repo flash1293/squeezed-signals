@@ -81,6 +81,7 @@ def collect_file_sizes() -> Dict[str, int]:
     output_files = {
         "raw_dataset.pkl": "Raw Dataset (Pickle)",
         "metrics.ndjson": "Phase 1: NDJSON",
+        "metrics.ndjson.zst": "Phase 1: NDJSON (zstd)",
         "metrics.columnar.msgpack": "Phase 2: Columnar",
         "metrics.compressed.msgpack": "Phase 3: Compressed",
         "metrics.final.tsdb": "Phase 4: Custom Binary",

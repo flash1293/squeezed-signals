@@ -9,7 +9,32 @@ This serves as our baseline for comparison - it's human-readable but extremely i
 import json
 import os
 import pickle
+import zstandard as zstd
 from typing import List, Dict, Any
+
+def store_as_ndjson_compressed(data_points: List[Dict[str, Any]], output_file: str) -> int:
+    """
+    Store data points as zstd-compressed NDJSON.
+    
+    Args:
+        data_points: List of data point dictionaries
+        output_file: Path to output file
+        
+    Returns:
+        File size in bytes
+    """
+    print(f"Writing {len(data_points):,} data points to zstd-compressed NDJSON format...")
+    
+    # Create compressor
+    cctx = zstd.ZstdCompressor(level=3)  # Level 3 is a good balance of speed vs compression
+    
+    with open(output_file, "wb") as f:
+        with cctx.stream_writer(f) as compressor:
+            for point in data_points:
+                json_line = json.dumps(point, separators=(',', ':')) + '\n'
+                compressor.write(json_line.encode('utf-8'))
+    
+    return os.path.getsize(output_file)
 
 def store_as_ndjson(data_points: List[Dict[str, Any]], output_file: str) -> int:
     """
@@ -98,10 +123,20 @@ def main():
     output_file = "output/metrics.ndjson"
     file_size = store_as_ndjson(data_points, output_file)
     
+    # Store as zstd-compressed NDJSON
+    compressed_output_file = "output/metrics.ndjson.zst"
+    compressed_file_size = store_as_ndjson_compressed(data_points, compressed_output_file)
+
     print(f"\n📊 NDJSON Storage Results:")
     print(f"  Output file: {output_file}")
     print(f"  File size: {file_size:,} bytes ({file_size / 1024 / 1024:.2f} MB)")
     print(f"  Bytes per data point: {file_size / len(data_points):.2f}")
+    
+    print(f"\n📊 Compressed NDJSON (zstd) Results:")
+    print(f"  Output file: {compressed_output_file}")
+    print(f"  File size: {compressed_file_size:,} bytes ({compressed_file_size / 1024 / 1024:.2f} MB)")
+    print(f"  Bytes per data point: {compressed_file_size / len(data_points):.2f}")
+    print(f"  Compression ratio vs raw NDJSON: {file_size / compressed_file_size:.2f}x")
     
     # Analyze inefficiencies
     analyze_ndjson_inefficiency(data_points)
@@ -122,6 +157,7 @@ def main():
     return {
         "format": "NDJSON",
         "file_size": file_size,
+        "compressed_file_size": compressed_file_size,
         "compression_ratio": 1.0,  # Baseline
         "data_points": len(data_points)
     }

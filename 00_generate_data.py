@@ -19,8 +19,8 @@ def main():
     
     # Configuration for data generation
     config = {
-        "num_series": 50,           # Number of unique time series
-        "num_points_per_series": 1000,  # Data points per series
+        "num_series": 500,           # Increased from 50 to 500
+        "num_points_per_series": 10000,  # Increased from 1000 to 10000
         "base_interval": 15,        # Base scrape interval (seconds)
         "jitter_range": 5          # Random jitter range (seconds)
     }
