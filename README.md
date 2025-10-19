@@ -98,6 +98,8 @@ With the small dataset (46,000 points):
 - ✅ Huge space savings for historical data
 - ❌ Lossy compression
 
+📖 **[Technical Deep Dive: Downsampling Storage](docs/phase6-downsampling-deep-dive.md)**
+
 ### Phase 7: General-Purpose Compression (zstd)
 - ✅ Excellent compression with no code changes
 - ✅ Industry standard, battle-tested
@@ -132,7 +134,8 @@ squeezed-signals/
 │   └── encoders.py              # Compression algorithms
 ├── docs/                         # Technical deep dives
 │   ├── phase3-binary-table-deep-dive.md
-│   └── phase5-compression-tricks-deep-dive.md
+│   ├── phase5-compression-tricks-deep-dive.md
+│   └── phase6-downsampling-deep-dive.md
 └── output/                       # Generated files
 ```
 
@@ -142,6 +145,7 @@ For detailed technical explanations of the compression algorithms:
 
 - **[Phase 3: Binary Table Deep Dive](docs/phase3-binary-table-deep-dive.md)** - String deduplication and fixed-width encoding
 - **[Phase 5: Compression Tricks Deep Dive](docs/phase5-compression-tricks-deep-dive.md)** - XOR compression, delta encoding, and bit-level optimization
+- **[Phase 6: Downsampling Deep Dive](docs/phase6-downsampling-deep-dive.md)** - Multi-resolution storage and hierarchical retention
 
 ## 🎛️ Data Generation Features
 
