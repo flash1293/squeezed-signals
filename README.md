@@ -71,11 +71,6 @@ DATA_GENERATOR=real python main.py --size small
 # Control dataset size (both generators)
 DATASET_SIZE=small   # ~50,000 points
 DATASET_SIZE=big     # ~500,000 points
-
-# Compare generators easily
-python compare_generators.py synthetic small
-python compare_generators.py real small  
-python compare_generators.py compare  # Run both for comparison
 ```
 - **Platform Stability**: Well-managed services show reduced random variation
 

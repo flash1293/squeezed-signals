@@ -69,7 +69,14 @@ def parse_csv_file(csv_path: Path) -> pd.DataFrame:
         
         # Convert timestamp to Unix timestamp
         try:
-            df['unix_timestamp'] = pd.to_datetime(df[timestamp_col]).astype('int64') // 10**9
+            if timestamp_col == 'timestamp' and df[timestamp_col].dtype in ['int64', 'float64']:
+                # This is likely "seconds since first data was collected" format
+                # Convert to Unix timestamps by adding to a base time
+                base_time = int(time.time()) - df[timestamp_col].max()  # Start time
+                df['unix_timestamp'] = df[timestamp_col] + base_time
+            else:
+                # Try to parse as datetime
+                df['unix_timestamp'] = pd.to_datetime(df[timestamp_col]).astype('int64') // 10**9
         except:
             # If timestamp parsing fails, generate sequential timestamps
             start_time = int(time.time()) - len(df) * 15  # 15 second intervals going backwards
