@@ -49,7 +49,7 @@ def create_index_section(series_metadata: Dict[str, Any], data_offsets: Dict[str
     for series_id, metadata in series_metadata.items():
         index_data["series_index"][series_id] = {
             "metadata": metadata,
-            "data_offset": data_offsets[series_id],
+            "data_offset": data_offsets.get(series_id, 0),
             "data_size": 0  # Will be filled in when we know the size
         }
     

@@ -30,34 +30,39 @@ def run_phase(phase_number: int, phase_name: str, script_name: str) -> Dict[str,
     start_time = time.time()
     
     try:
-        # Import and run the phase module
-        if script_name == "00_generate_data.py":
-            from importlib import import_module
-            import sys
-            sys.path.append('.')
-            
-            # Import the module dynamically
-            module_name = script_name.replace('.py', '').replace('-', '_')
-            module = __import__(module_name)
-            
-            # Run main function
-            result = module.main()
-            
+        # Run the phase module using subprocess to avoid import conflicts
+        import subprocess
+        result = subprocess.run([sys.executable, script_name], 
+                              capture_output=True, 
+                              text=True,
+                              cwd=os.getcwd())
+        
+        if result.returncode != 0:
+            print(f"❌ Phase {phase_number} failed with return code {result.returncode}")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            return {
+                "phase": phase_number,
+                "name": phase_name,
+                "error": f"Failed with return code {result.returncode}",
+                "execution_time": 0,
+                "status": "failed"
+            }
         else:
-            # For other phases, run them as subprocesses to avoid import conflicts
-            import subprocess
-            result = subprocess.run([sys.executable, script_name], 
-                                  capture_output=False, 
-                                  text=True,
-                                  cwd=os.getcwd())
-            
-            if result.returncode != 0:
-                print(f"❌ Phase {phase_number} failed with return code {result.returncode}")
-                return {"error": f"Failed with return code {result.returncode}"}
+            # Print the output from the phase
+            print(result.stdout)
+            if result.stderr:
+                print(f"STDERR: {result.stderr}")
         
     except Exception as e:
         print(f"❌ Phase {phase_number} failed with error: {e}")
-        return {"error": str(e)}
+        return {
+            "phase": phase_number,
+            "name": phase_name,
+            "error": str(e),
+            "execution_time": 0,
+            "status": "failed"
+        }
     
     end_time = time.time()
     execution_time = end_time - start_time
@@ -112,7 +117,10 @@ def print_comprehensive_summary(phase_results: List[Dict[str, Any]], file_sizes:
         exec_time = result.get("execution_time", 0)
         total_time += exec_time
         
-        print(f"  Phase {result['phase']}: {result['name']}")
+        phase_num = result.get("phase", "?")
+        phase_name = result.get("name", "Unknown")
+        
+        print(f"  Phase {phase_num}: {phase_name}")
         print(f"    Status: {status}")
         print(f"    Time: {exec_time:.2f}s")
         if "error" in result:
