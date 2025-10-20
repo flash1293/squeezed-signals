@@ -253,7 +253,7 @@ def main():
 
     # Apply zstd compression
     print(f"Applying zstd compression to binary table...")
-    compressor = zstd.ZstdCompressor(level=3)
+    compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
     compressed_data = compressor.compress(binary_data)
 
     # Store the compressed data

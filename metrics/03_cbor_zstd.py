@@ -21,7 +21,7 @@ from data_generator import load_dataset
 import cbor2
 
 
-def store_as_cbor_zstd(data_points, output_file, compression_level=3):
+def store_as_cbor_zstd(data_points, output_file, compression_level=22):
     """Store data points in zstd-compressed CBOR format"""
     print(f"Writing {len(data_points):,} data points to zstd-compressed CBOR format...")
     
@@ -30,7 +30,7 @@ def store_as_cbor_zstd(data_points, output_file, compression_level=3):
     for point in data_points:
         cbor_data.extend(cbor2.dumps(point))
     
-    # Then compress with zstd
+    # Then compress with zstd (maximum compression level for consistency)
     compressor = zstd.ZstdCompressor(level=compression_level)
     compressed_data = compressor.compress(cbor_data)
     

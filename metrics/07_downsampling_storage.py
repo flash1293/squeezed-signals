@@ -401,9 +401,9 @@ def store_downsampled_data_basic(downsampled_datasets: Dict[int, List[Dict[str, 
         
         # Store using MessagePack (same as Phase 5)
         output_file = os.path.join(output_dir, f"metrics.downsampled.{interval}s.zst")
-        # Serialize and compress with zstd
+        # Serialize and compress with zstd (same level as Phase 6)
         msgpack_data = msgpack.packb(compressed_data, use_bin_type=True)
-        compressor = zstd.ZstdCompressor(level=3)
+        compressor = zstd.ZstdCompressor(level=22)
         compressed_msgpack = compressor.compress(msgpack_data)
         
         with open(output_file, "wb") as f:
