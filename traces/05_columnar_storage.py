@@ -612,12 +612,13 @@ def optimize_relationship_structure(relationship_data: Dict[str, Any]) -> Dict[s
         # Keep only the fields that aren't stored in columnar format
         for span in spans:
             essential_span = {
-                'span_id': span.get('span_id'),
-                'service_id': span.get('service_id'), 
-                'operation_id': span.get('operation_id'),
-                'start_time': span.get('start_time'),
-                'end_time': span.get('end_time')
-                # duration, status_code, parent_span_id now in columnar format
+                'span_id': span.get('si'),  # span index 
+                'service_id': span.get('svc'),  # service ID
+                'operation_id': span.get('op'),  # operation ID
+                'start_time': span.get('std'),  # start time - keep this as it's not efficiently compressed
+                'tags': span.get('tags', {}),  # tags - keep as they're complex
+                'logs': span.get('logs', [])   # logs - keep as they're complex
+                # dur, sc, pi now stored in columnar format
             }
             essential_trace['essential_spans'].append(essential_span)
         
@@ -805,13 +806,19 @@ def validate_data_reconstruction(columnar_file: str, original_relationship_file:
             
             # Compare each span
             for j, (orig_span, recon_span) in enumerate(zip(orig_spans, recon_spans)):
-                # Check key fields
-                key_fields = ['span_id', 'duration', 'status_code', 'start_time', 'end_time']
-                for field in key_fields:
-                    orig_val = orig_span.get(field)
-                    recon_val = recon_span.get(field)
+                # Check key fields using the relationship format field names
+                key_field_mappings = {
+                    'dur': 'dur',        # duration in nanoseconds
+                    'sc': 'sc',          # status code
+                    'std': 'std',        # start time
+                    'pi': 'pi'           # parent index
+                }
+                
+                for orig_field, recon_field in key_field_mappings.items():
+                    orig_val = orig_span.get(orig_field)
+                    recon_val = recon_span.get(recon_field)
                     if orig_val != recon_val:
-                        print(f"    ❌ Trace {i}, Span {j}, Field '{field}': {orig_val} vs {recon_val}")
+                        print(f"    ❌ Trace {i}, Span {j}, Field '{orig_field}': {orig_val} vs {recon_val}")
                         return None
         
         print(f"  ✅ Perfect reconstruction verified for all {len(original_traces)} traces")
@@ -829,8 +836,33 @@ def reconstruct_traces_from_columnar(columnar_data: Dict[str, Any]) -> List[Dict
     columnar_arrays = columnar_data.get('columnar_data', {})
     mappings = columnar_data.get('mappings', {})
     
-    # We would need to decompress the columnar arrays here
-    # For now, let's check if the essential data is preserved
+    # CRITICAL: Actually decompress the columnar arrays
+    print("    Decompressing columnar arrays...")
+    
+    # Decompress durations
+    durations_compressed = columnar_arrays.get('durations', b'')
+    status_codes_compressed = columnar_arrays.get('status_codes', b'')
+    parent_rels_compressed = columnar_arrays.get('parent_relationships', b'')
+    
+    # We need to implement decompression for the specific compression strategy used
+    # Let's create a simple decompressor that can handle our formats
+    decompressor = AdvancedColumnarEncoder()
+    
+    try:
+        durations = decompress_columnar_array(durations_compressed, 'durations')
+        status_codes = decompress_columnar_array(status_codes_compressed, 'status_codes') 
+        parent_relationships = decompress_columnar_array(parent_rels_compressed, 'parent_relationships')
+        
+        print(f"    Decompressed {len(durations)} durations")
+        print(f"    Decompressed {len(status_codes)} status codes")
+        print(f"    Decompressed {len(parent_relationships)} parent relationships")
+        
+    except Exception as e:
+        print(f"    ❌ Failed to decompress columnar arrays: {e}")
+        # Fall back to loading the data differently
+        durations = []
+        status_codes = []
+        parent_relationships = []
     
     reconstructed_traces = []
     span_offset = 0
@@ -839,31 +871,103 @@ def reconstruct_traces_from_columnar(columnar_data: Dict[str, Any]) -> List[Dict
         essential_spans = trace.get('essential_spans', [])
         span_count = len(essential_spans)
         
-        # For validation, we'll reconstruct what we can from the essential data
+        # Reconstruct full trace
         full_trace = {
-            'trace_id': trace.get('trace_id'),
-            'spans': []
+            'tid': trace.get('trace_id'),  # Use same key as original
+            'spans': [],
+            'root_start': trace.get('root_start', 0)
         }
         
         for span_idx, essential_span in enumerate(essential_spans):
-            # Reconstruct full span (we'd need to decompress columnar data for duration, status_code, etc.)
+            global_span_idx = span_offset + span_idx
+            
+            # Reconstruct full span with data from columnar arrays
             full_span = {
-                'span_id': essential_span.get('span_id'),
-                'service_id': essential_span.get('service_id'),
-                'operation_id': essential_span.get('operation_id'),
-                'start_time': essential_span.get('start_time'),
-                'end_time': essential_span.get('end_time'),
-                # These would come from decompressed columnar arrays:
-                'duration': 0,  # Placeholder - would decompress from columnar_arrays['durations']
-                'status_code': 0,  # Placeholder - would decompress from columnar_arrays['status_codes']
-                'parent_span_id': None  # Placeholder - would decompress from columnar_arrays['parent_relationships']
+                'si': essential_span.get('span_id'),
+                'svc': essential_span.get('service_id'),
+                'op': essential_span.get('operation_id'),
+                'std': essential_span.get('start_time'),
+                # Get compressed data if available
+                'dur': durations[global_span_idx] if global_span_idx < len(durations) else 0,
+                'sc': status_codes[global_span_idx] if global_span_idx < len(status_codes) else 0,
+                'pi': parent_relationships[global_span_idx] if global_span_idx < len(parent_relationships) else -1,
+                # These would be in the essential span or mappings
+                'tags': essential_span.get('tags', {}),
+                'logs': essential_span.get('logs', [])
             }
+            # Calculate end_time from start_time + duration (only if both are valid)
+            start_time = full_span.get('std')
+            duration = full_span.get('dur')
+            if start_time is not None and duration is not None:
+                full_span['etd'] = start_time + duration
+            
             full_trace['spans'].append(full_span)
         
         reconstructed_traces.append(full_trace)
         span_offset += span_count
     
     return reconstructed_traces
+
+def decompress_columnar_array(compressed_data: bytes, array_type: str) -> List:
+    """Decompress a columnar array based on its compression strategy"""
+    if not compressed_data:
+        return []
+    
+    try:
+        # The compressed data should be a zstd-compressed msgpack structure
+        decompressor = zstd.ZstdDecompressor()
+        decompressed_msgpack = decompressor.decompress(compressed_data)
+        data_structure = msgpack.loads(decompressed_msgpack, raw=False, strict_map_key=False)
+        
+        # The structure depends on the compression strategy used
+        # Most of our strategies store {'dict': dictionary, 'indices': indices} or similar
+        if isinstance(data_structure, dict):
+            if 'dict' in data_structure and 'indices' in data_structure:
+                # Dictionary compression format
+                dictionary = data_structure['dict']
+                indices = data_structure['indices']
+                # Reconstruct original array
+                if isinstance(dictionary, dict):
+                    # Convert back from dict format
+                    reconstructed = []
+                    for idx in indices:
+                        # Find value by index in dictionary
+                        for key, value in dictionary.items():
+                            if value == idx:
+                                reconstructed.append(key)
+                                break
+                    return reconstructed
+                else:
+                    # List-based dictionary
+                    return [dictionary[idx] for idx in indices if idx < len(dictionary)]
+            elif 'base' in data_structure and 'deltas' in data_structure:
+                # Delta compression format
+                base = data_structure['base']
+                deltas = data_structure['deltas']
+                reorder = data_structure.get('reorder', list(range(len(deltas))))
+                
+                # Reconstruct from deltas
+                values = [base]
+                current = base
+                for delta in deltas[1:]:
+                    current += delta
+                    values.append(current)
+                
+                # Apply reordering
+                if len(reorder) == len(values):
+                    reconstructed = [0] * len(values)
+                    for i, original_idx in enumerate(reorder):
+                        reconstructed[original_idx] = values[i]
+                    return reconstructed
+                else:
+                    return values
+        
+        # Fallback: treat as raw array
+        return data_structure if isinstance(data_structure, list) else []
+        
+    except Exception as e:
+        print(f"    Warning: Could not decompress {array_type}: {e}")
+        return []
 
 def main():
     """Apply columnar optimizations on top of relationship-compressed data"""
