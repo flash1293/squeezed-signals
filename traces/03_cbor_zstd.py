@@ -98,7 +98,7 @@ def create_compression_dictionary(spans: List[dict], patterns: Dict[str, Any]) -
         print(f"Dictionary training failed: {e}, proceeding without dictionary")
         return None
 
-def compress_with_zstd(spans: List[dict], compression_level: int = 3) -> tuple:
+def compress_with_zstd(spans: List[dict], compression_level: int = 22) -> tuple:
     """Compress CBOR data with zstandard"""
     print(f"Compressing with zstd level {compression_level}...")
     
@@ -216,7 +216,7 @@ def benchmark_compression_performance(spans: List[dict], iterations: int = 3):
     cbor_data = cbor2.dumps(spans)
     
     # Compression benchmarks
-    compressor = zstd.ZstdCompressor(level=3, dict_data=compression_dict)
+    compressor = zstd.ZstdCompressor(level=22, dict_data=compression_dict)  # Use consistent compression level
     
     compress_times = []
     for _ in range(iterations):

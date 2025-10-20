@@ -266,7 +266,7 @@ def save_relationship_compressed(compressed_data: Dict[str, Any], output_file: s
     msgpack_data = msgpack.packb(compressed_data, use_bin_type=True)
     
     # Compress with zstd
-    compressor = zstd.ZstdCompressor(level=6)  # Higher level for better compression
+    compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
     compressed_bytes = compressor.compress(msgpack_data)
     
     with open(output_file, 'wb') as f:

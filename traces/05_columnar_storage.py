@@ -85,7 +85,7 @@ class AdvancedColumnarEncoder:
     """Advanced columnar encoding with column-specific optimizations"""
     
     def __init__(self):
-        self.compressor = zstd.ZstdCompressor(level=9)  # Higher compression for columnar
+        self.compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
         
     def analyze_column_patterns(self, values: List[Any], column_name: str) -> Dict[str, Any]:
         """Analyze patterns in a column for optimal compression strategy"""
@@ -460,7 +460,7 @@ def save_columnar_data(compressed_data: Dict[str, Any], output_file: str):
     serialized_data = msgpack.packb(compressed_data, use_bin_type=True)
     
     # Final compression
-    final_compressor = zstd.ZstdCompressor(level=12)  # Maximum compression
+    final_compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
     final_compressed = final_compressor.compress(serialized_data)
     
     with open(output_file, 'wb') as f:
