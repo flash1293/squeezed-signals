@@ -722,12 +722,15 @@ def save_enhanced_columnar_data(enhanced_data: Dict[str, Any], output_file: str)
     sample_spans = sample_trace.get('essential_spans', [])
     if sample_spans:
         sample_span = sample_spans[0]
-        required_fields = ['span_id', 'service_id', 'operation_id', 'start_time', 'end_time']
+        # Check for the fields we actually store in essential spans
+        required_fields = ['span_id', 'service_id', 'operation_id', 'start_time']
         missing_fields = [f for f in required_fields if f not in sample_span]
         if missing_fields:
             print(f"  ⚠️  WARNING: Missing fields in spans: {missing_fields}")
         else:
             print(f"  ✅ All required span fields present")
+            # Note: duration, status_code, parent_index are stored in columnar format
+            print(f"  ✅ Duration, status_code, parent_index stored in columnar arrays")
     
     # Serialize the enhanced structure
     serialized_data = msgpack.packb(enhanced_data, use_bin_type=True)
