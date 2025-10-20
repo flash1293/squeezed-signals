@@ -66,6 +66,7 @@ def display_compression_summary(size: str):
         ('Phase 2 - CBOR', f'output/traces_{size}_cbor.cbor'),
         ('Phase 3 - CBOR+Zstd', f'output/traces_{size}_cbor_zstd.zst'),
         ('Phase 4 - Relationships', f'output/traces_{size}_relationships.msgpack.zst'),
+        ('Phase 5 - Columnar', f'output/traces_{size}_columnar.msgpack.zst'),
         # Add more phases as they're implemented
     ]
     
@@ -154,6 +155,7 @@ def main():
         ('02', '02_cbor_storage.py', 'CBOR binary encoding'),
         ('03', '03_cbor_zstd.py', 'CBOR + Zstandard compression'),
         ('04', '04_span_relationships.py', 'Span relationship compression'),
+        ('05', '05_columnar_storage.py', 'Columnar trace storage'),
         # Add more phases as they're implemented
     ]
     
