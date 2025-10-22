@@ -22,7 +22,7 @@ class ZstdLogStorage:
     This builds on the plain text baseline but adds compression.
     """
     
-    def __init__(self, compression_level: int = 3):
+    def __init__(self, compression_level: int = 22):
         self.lines: List[str] = []
         self.compression_level = compression_level
         self.compressor = zstd.ZstdCompressor(level=compression_level)
@@ -142,7 +142,7 @@ class ZstdLogStorage:
 
 
 def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, 
-                    compression_level: int = 3) -> Dict[str, Any]:
+                    compression_level: int = 22) -> Dict[str, Any]:
     """Process a log file with Zstd compression"""
     print(f"Processing {input_file.name} with Zstd compression (level {compression_level})...")
     
@@ -193,8 +193,8 @@ def main():
     parser = argparse.ArgumentParser(description='Phase 2: Zstd Compressed Log Storage')
     parser.add_argument('--size', choices=['small', 'big', 'huge'], default='small',
                        help='Dataset size to process (default: small)')
-    parser.add_argument('--level', type=int, default=3, choices=range(1, 23),
-                       help='Zstd compression level (1-22, default: 3)')
+    parser.add_argument('--level', type=int, default=22, choices=range(1, 23),
+                       help='Zstd compression level (1-22, default: 22)')
     
     args = parser.parse_args()
     
