@@ -237,12 +237,26 @@ class SmartRowOrderer:
         """
         reordered_data = data.copy()
         
+        # Check if this is identity ordering (no actual reordering)
+        is_identity = new_order == list(range(len(new_order)))
+        
+        if is_identity:
+            # No reordering needed - return original data to preserve efficient formats
+            print("  Identity ordering detected - preserving original data structures")
+            return reordered_data
+        
         # Reorder line_to_template mapping
         old_line_to_template = data['line_to_template']
-        new_line_to_template = {}
         
-        for new_idx, original_idx in enumerate(new_order):
-            new_line_to_template[new_idx] = old_line_to_template[original_idx]
+        # Preserve the original format (list vs dict) for efficiency
+        if isinstance(old_line_to_template, list):
+            # Reorder the list
+            new_line_to_template = [old_line_to_template[original_idx] for original_idx in new_order]
+        else:
+            # Handle dict format (convert to new dict)
+            new_line_to_template = {}
+            for new_idx, original_idx in enumerate(new_order):
+                new_line_to_template[new_idx] = old_line_to_template[original_idx]
         
         reordered_data['line_to_template'] = new_line_to_template
         
@@ -298,9 +312,11 @@ def calculate_compression_benefit(original_data: Dict[str, Any], reordered_data:
     return benefits
 
 
-def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, strategy: str = 'hybrid_optimal') -> Dict[str, Any]:
+def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, strategy: str = 'hybrid_optimal', drop_order: bool = False) -> Dict[str, Any]:
     """Process a log file with smart row ordering"""
     print(f"Processing {input_file.name} with smart row ordering...")
+    if drop_order:
+        print("⚠️  Order preservation DISABLED - original chronological order will be lost")
     
     start_time = time.time()
     
@@ -332,16 +348,6 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
     # Calculate compression benefits from reordering
     benefits = calculate_compression_benefit(phase4_data, reordered_data)
     
-    # Compress the ordering mapping efficiently
-    import array
-    # Use array of 32-bit integers instead of Python list for compactness
-    mapping_array = array.array('I', original_order_mapping)  # 'I' = unsigned int (4 bytes each)
-    compressed_mapping = zstd.ZstdCompressor(level=22).compress(mapping_array.tobytes())
-    
-    print(f"  Ordering mapping: {len(original_order_mapping):,} entries")
-    print(f"  Mapping raw size: {len(mapping_array.tobytes()):,} bytes")
-    print(f"  Mapping compressed: {len(compressed_mapping):,} bytes")
-    
     # Create Phase 5 data structure with ordering metadata
     # IMPORTANT: Keep all the Phase 4 optimizations (encoded_variable_columns, etc.)
     phase5_data = {
@@ -353,7 +359,21 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
         'total_lines': reordered_data['total_lines'],
         'unique_templates': reordered_data['unique_templates'],
         'encoding_metadata': reordered_data['encoding_metadata'],  # Keep Phase 4 metadata
-        'ordering_metadata': {
+    }
+    
+    # Only store ordering metadata if order preservation is enabled
+    if not drop_order:
+        # Compress the ordering mapping efficiently
+        import array
+        # Use array of 32-bit integers instead of Python list for compactness
+        mapping_array = array.array('I', original_order_mapping)  # 'I' = unsigned int (4 bytes each)
+        compressed_mapping = zstd.ZstdCompressor(level=22).compress(mapping_array.tobytes())
+        
+        print(f"  Ordering mapping: {len(original_order_mapping):,} entries")
+        print(f"  Mapping raw size: {len(mapping_array.tobytes()):,} bytes")
+        print(f"  Mapping compressed: {len(compressed_mapping):,} bytes")
+        
+        phase5_data['ordering_metadata'] = {
             'strategy': strategy,
             'original_order_mapping_compressed': compressed_mapping,  # Store compressed mapping
             'mapping_format': 'uint32_array_zstd',
@@ -361,7 +381,18 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
             'ordering_timestamp': time.time(),
             'phase4_preserved': True  # Flag that we kept Phase 4 optimizations
         }
-    }
+        mapping_overhead_bytes = len(compressed_mapping)
+    else:
+        print(f"  Skipping order mapping storage (--drop-order enabled)")
+        phase5_data['ordering_metadata'] = {
+            'strategy': strategy,
+            'order_preservation': 'disabled',
+            'compression_benefits': benefits,
+            'ordering_timestamp': time.time(),
+            'phase4_preserved': True,
+            'warning': 'Original chronological order cannot be recovered'
+        }
+        mapping_overhead_bytes = 0
     
     # Calculate original size (from actual log file)
     original_size = sum(len(line.encode('utf-8')) + 1 for line in open(input_file, 'r', encoding='utf-8', errors='ignore') if line.strip())
@@ -416,10 +447,10 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
             'phase5_smart_row_ordering': True
         },
         'ordering_stats': {
-            'preserved_original_order': True,
-            'ordering_overhead_bytes': len(compressed_mapping),  # Use compressed mapping size
+            'preserved_original_order': not drop_order,
+            'ordering_overhead_bytes': mapping_overhead_bytes,  # Use variable mapping size
             'strategy_applied': strategy,
-            'mapping_compression_ratio': len(mapping_array.tobytes()) / len(compressed_mapping)
+            'order_preservation_enabled': not drop_order
         }
     }
     
@@ -488,18 +519,23 @@ def main():
                        choices=['template_grouped', 'timestamp_clustered', 'variable_clustered', 'hybrid_optimal', 'identity'],
                        help='Row ordering strategy to use')
     parser.add_argument('--verify', action='store_true', help='Verify reconstruction')
+    parser.add_argument('--drop-order', action='store_true', 
+                       help='Drop original order preservation to save space (timestamps still available for approximate ordering)')
     
     args = parser.parse_args()
     
     try:
         # Process the file
-        metadata = process_log_file(args.input_file, args.output_file, args.metadata_file, args.strategy)
+        metadata = process_log_file(args.input_file, args.output_file, args.metadata_file, args.strategy, args.drop_order)
         
-        # Verify reconstruction if requested
+        # Verify reconstruction if requested (skip if order was dropped)
         if args.verify:
-            if not verify_reconstruction(args.input_file, args.output_file):
-                print("❌ Reconstruction verification failed!")
-                return 1
+            if args.drop_order:
+                print("⚠️  Skipping reconstruction verification (--drop-order enabled)")
+            else:
+                if not verify_reconstruction(args.input_file, args.output_file):
+                    print("❌ Reconstruction verification failed!")
+                    return 1
         
         print(f"\n📊 Phase 5 Smart Row Ordering Results:")
         print(f"  Lines processed: {metadata['lines_processed']:,}")

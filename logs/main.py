@@ -214,13 +214,14 @@ def run_phase_5(size: str) -> bool:
             print(f"❌ Input file not found: {input_file}")
             return False
         
-        # Run processing with hybrid optimal strategy
-        metadata = phase5_module.process_log_file(input_file, output_file, metadata_file, strategy='hybrid_optimal')
+        # Run processing with hybrid optimal strategy and drop order for best compression
+        metadata = phase5_module.process_log_file(input_file, output_file, metadata_file, 
+                                                strategy='template_grouped', drop_order=True)
         
         print(f"✅ Phase 5 completed successfully")
         print(f"   Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
         print(f"   Improvement over Phase 4: {metadata['phase5_improvement_ratio']:.2f}x")
-        print(f"   Strategy: {metadata['strategy']}")
+        print(f"   Strategy: {metadata['strategy']} (order preservation disabled)")
         print(f"   Space saved: {(1 - metadata['file_size_bytes']/metadata['original_size_bytes'])*100:.1f}%")
         return True
         
