@@ -13,6 +13,7 @@ Expected compression evolution:
 - Phase 3: Template extraction (TBD)
 - Phase 4: Columnar variable encoding (TBD)
 - Phase 5: Smart ordering optimization (TBD)
+- Phase 6: Maximum compression - drop order preservation (TBD)
 """
 
 import argparse
@@ -230,6 +231,42 @@ def run_phase_5(size: str) -> bool:
         return False
 
 
+def run_phase_6(size: str) -> bool:
+    """Run Phase 6: Maximum compression (drop order preservation)"""
+    print("\n🔄 Phase 6: Maximum Compression - Drop Order")
+    print("-" * 50)
+    
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("phase6", "06_drop_order_preservation.py")
+        phase6_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(phase6_module)
+        
+        input_file = Path(f'output/logs_{size}.log')
+        output_file = Path(f'output/phase6_logs_{size}.pkl')
+        metadata_file = Path(f'output/phase6_logs_metadata_{size}.json')
+        
+        # Check if input exists
+        if not input_file.exists():
+            print(f"❌ Input file not found: {input_file}")
+            return False
+        
+        # Run processing
+        metadata = phase6_module.process_log_file(input_file, output_file, metadata_file, 
+                                                strategy='template_grouped')
+        
+        print(f"✅ Phase 6 completed successfully")
+        print(f"   Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
+        print(f"   Improvement over Phase 5: {metadata['phase6_improvement_ratio']:.2f}x")
+        print(f"   Space saved vs Phase 5: {metadata['space_saved_vs_phase5_percent']:.1f}%")
+        print(f"   ⚠️  Order preservation: DISABLED")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Phase 6 failed: {e}")
+        return False
+
+
 def print_comprehensive_results(sizes: List[str]):
     """Print comprehensive results across all phases and sizes"""
     print("\n" + "=" * 70)
@@ -242,6 +279,7 @@ def print_comprehensive_results(sizes: List[str]):
         ('Phase 3 (Template+Col)', 'phase3'),
         ('Phase 4 (Advanced Enc)', 'phase4'),
         ('Phase 5 (Smart Ordering)', 'phase5'),
+        ('Phase 6 (Drop Order)', 'phase6'),
     ]
     
     print(f"{'Phase':<20} {'Dataset':<8} {'Lines':<8} {'Original':<12} {'Compressed':<12} {'Ratio':<8} {'Saved':<8}")
@@ -395,7 +433,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run log compression pipeline')
     parser.add_argument('--size', choices=['small', 'big', 'huge'], 
                        help='Run for specific size only')
-    parser.add_argument('--phase', type=int, choices=[0, 1, 2, 3, 4, 5],
+    parser.add_argument('--phase', type=int, choices=[0, 1, 2, 3, 4, 5, 6],
                        help='Run specific phase only (requires --size)')
     parser.add_argument('--force-regen', action='store_true',
                        help='Force regeneration of Phase 0 data even if cached')
@@ -417,7 +455,7 @@ def main():
             return 1
         phases = [args.phase]
     else:
-        phases = [0, 1, 2, 3, 4, 5]
+        phases = [0, 1, 2, 3, 4, 5, 6]
     
     print("🚀 Log Compression Pipeline")
     print("=" * 40)
@@ -459,6 +497,10 @@ def main():
                     break
             elif phase == 5:
                 if not run_phase_5(size):
+                    size_success = False
+                    break
+            elif phase == 6:
+                if not run_phase_6(size):
                     size_success = False
                     break
         
