@@ -126,6 +126,40 @@ def run_phase_2(size: str) -> bool:
         return False
 
 
+def run_phase_3(size: str) -> bool:
+    """Run Phase 3: Template extraction + columnar storage"""
+    print("\n🔄 Phase 3: Template Extraction + Columnar Storage")
+    print("-" * 50)
+    
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("phase3", "03_template_extraction.py")
+        phase3_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(phase3_module)
+        
+        input_file = Path(f'output/logs_{size}.log')
+        output_file = Path(f'output/phase3_logs_{size}.pkl')
+        metadata_file = Path(f'output/phase3_logs_metadata_{size}.json')
+        
+        # Check if input exists
+        if not input_file.exists():
+            print(f"❌ Input file not found: {input_file}")
+            return False
+        
+        # Run processing
+        metadata = phase3_module.process_log_file(input_file, output_file, metadata_file)
+        
+        print(f"✅ Phase 3 completed successfully")
+        print(f"   Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
+        print(f"   Template reuse: {metadata['template_reuse_ratio']:.1f}x")
+        print(f"   Space saved: {(1 - metadata['file_size_bytes']/metadata['original_size_bytes'])*100:.1f}%")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Phase 3 failed: {e}")
+        return False
+
+
 def print_comprehensive_results(sizes: List[str]):
     """Print comprehensive results across all phases and sizes"""
     print("\n" + "=" * 70)
@@ -135,6 +169,7 @@ def print_comprehensive_results(sizes: List[str]):
     phases = [
         ('Phase 1 (Baseline)', 'phase1'),
         ('Phase 2 (Zstd L22)', 'phase2'),
+        ('Phase 3 (Template+Col)', 'phase3'),
     ]
     
     print(f"{'Phase':<20} {'Dataset':<8} {'Lines':<8} {'Original':<12} {'Compressed':<12} {'Ratio':<8} {'Saved':<8}")
@@ -153,7 +188,13 @@ def print_comprehensive_results(sizes: List[str]):
                     
                     orig_mb = metadata['original_size_bytes'] / (1024*1024)
                     comp_mb = metadata['file_size_bytes'] / (1024*1024)
-                    ratio = metadata['compression_ratio']
+                    
+                    # Handle different metadata formats
+                    if 'overall_compression_ratio' in metadata:
+                        ratio = metadata['overall_compression_ratio']  # Phase 3 format
+                    else:
+                        ratio = metadata['compression_ratio']  # Phase 1 & 2 format
+                    
                     saved = (1 - metadata['file_size_bytes']/metadata['original_size_bytes']) * 100
                     lines = metadata.get('lines_processed', metadata.get('storage_stats', {}).get('total_lines', 'N/A'))
                     
@@ -211,7 +252,7 @@ def main():
             return 1
         phases = [args.phase]
     else:
-        phases = [0, 1, 2]
+        phases = [0, 1, 2, 3]
     
     print("🚀 Log Compression Pipeline")
     print("=" * 40)
@@ -241,6 +282,10 @@ def main():
                     break
             elif phase == 2:
                 if not run_phase_2(size):
+                    size_success = False
+                    break
+            elif phase == 3:
+                if not run_phase_3(size):
                     size_success = False
                     break
         
