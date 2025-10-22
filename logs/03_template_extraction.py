@@ -42,9 +42,11 @@ class LogTemplateExtractor:
             (r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '<IP>'),  # IP addresses
             (r'\b\w{8}-\w{4}-\w{4}-\w{4}-\w{12}\b', '<UUID>'),  # UUIDs
             (r'\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', '<TIMESTAMP>'),  # ISO timestamps
+            (r'\b\d{6}\s+\d{6}\b', '<TIMESTAMP>'),  # Unix timestamp format like "081109 203615"
+            (r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\b', '<TIMESTAMP>'),  # Syslog format like "Dec 10 06:55:46"
             (r'\[\w+\s+\w+\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}\]', '<BRACKET_TIME>'),  # [Thu Jun 09 06:07:04 2005]
             (r'/[^\s\]]+', '<PATH>'),                   # File paths (not ending with ])
-            (r'\b[0-9a-f]{8,}\b', '<HEX>'),            # Hex strings
+            (r'\b[0-9a-f]*[a-f][0-9a-f]{7,}\b', '<HEX>'), # Hex strings (must contain at least one a-f letter and be 8+ chars total)
             (r'\b\d+\b', '<NUM>'),                     # Numbers (last to avoid conflicts)
         ]
         
@@ -251,14 +253,14 @@ class LogTemplateExtractor:
         }
     
     def save_to_file(self, output_path: Path) -> Dict[str, Any]:
-        """Save the extracted templates and variables with Zstd Level 22 compression"""
+        """Save the extracted templates and variables with Zstd Level 6 compression"""
         
         # Serialize data to bytes first
         data_bytes = pickle.dumps(self.extracted_data, protocol=pickle.HIGHEST_PROTOCOL)
         uncompressed_size = len(data_bytes)
         
-        # Apply Zstd Level 22 compression on top of template extraction
-        compressor = zstd.ZstdCompressor(level=22)
+        # Apply Zstd Level 6 compression on top of template extraction
+        compressor = zstd.ZstdCompressor(level=6)
         compressed_data = compressor.compress(data_bytes)
         
         # Save compressed data

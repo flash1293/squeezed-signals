@@ -95,7 +95,7 @@ def run_phase_1(size: str) -> bool:
 
 def run_phase_2(size: str) -> bool:
     """Run Phase 2: Zstd compression"""
-    print("\n🔄 Phase 2: Zstd Compression (Level 22)")
+    print("\n🔄 Phase 2: Zstd Compression (Level 6)")
     print("-" * 50)
     
     try:
@@ -113,8 +113,8 @@ def run_phase_2(size: str) -> bool:
             print(f"❌ Input file not found: {input_file}")
             return False
         
-        # Run processing with level 22
-        metadata = phase2_module.process_log_file(input_file, output_file, metadata_file, compression_level=22)
+        # Run processing with level 6
+        metadata = phase2_module.process_log_file(input_file, output_file, metadata_file, compression_level=6)
         
         print(f"✅ Phase 2 completed successfully")
         print(f"   Compression ratio: {metadata['compression_ratio']:.2f}x")
@@ -281,7 +281,7 @@ def print_comprehensive_results(sizes: List[str]):
     print("  • Apache: Web server error logs (structured)")
     print("  • HDFS: Distributed file system logs (variable structure)")  
     print("  • OpenSSH: SSH authentication logs (security events)")
-    print("  • Zstd Level 22: Maximum compression baseline")
+    print("  • Zstd Level 6: Fast compression baseline")
     print("  • Foundation ready for CLP-inspired template extraction!")
 
 
@@ -300,14 +300,107 @@ def print_file_sizes():
             print(f"   {file.name:<30} {size_mb:>8.1f} MB")
 
 
+def run_verification_tests(sizes: List[str]) -> bool:
+    """Run comprehensive verification tests for all phases and sizes"""
+    print("\n🔍 Running Comprehensive Data Integrity Verification")
+    print("=" * 60)
+    
+    verification_success = True
+    
+    for size in sizes:
+        print(f"\n📋 Verifying {size.upper()} dataset integrity...")
+        
+        # Verify Phase 3 (Template Extraction)
+        try:
+            print("  🔸 Phase 3: Template extraction verification...")
+            import subprocess
+            result = subprocess.run([
+                sys.executable, '03_template_extraction.py', 
+                '--size', size, '--verify'
+            ], capture_output=True, text=True, cwd='.')
+            
+            if result.returncode != 0:
+                print(f"  ❌ Phase 3 verification failed for {size}")
+                print(f"     Error: {result.stderr}")
+                verification_success = False
+            else:
+                print(f"  ✅ Phase 3 verification passed for {size}")
+        except Exception as e:
+            print(f"  ❌ Phase 3 verification error for {size}: {e}")
+            verification_success = False
+        
+        # Verify Phase 4 (Advanced Variable Encoding)
+        try:
+            print("  🔸 Phase 4: Advanced variable encoding verification...")
+            result = subprocess.run([
+                sys.executable, '04_advanced_variable_encoding.py', 
+                '--size', size, '--verify'
+            ], capture_output=True, text=True, cwd='.')
+            
+            if result.returncode != 0:
+                print(f"  ❌ Phase 4 verification failed for {size}")
+                print(f"     Error: {result.stderr}")
+                verification_success = False
+            else:
+                print(f"  ✅ Phase 4 verification passed for {size}")
+        except Exception as e:
+            print(f"  ❌ Phase 4 verification error for {size}: {e}")
+            verification_success = False
+        
+        # Verify Phase 5 (Smart Row Ordering) - only if files exist
+        phase5_file = Path(f"output/phase5_logs_{size}.pkl")
+        if phase5_file.exists():
+            try:
+                print("  🔸 Phase 5: Smart row ordering verification...")
+                result = subprocess.run([
+                    sys.executable, '05_smart_row_ordering.py',
+                    f'output/phase4_logs_{size}.pkl',
+                    f'output/phase5_logs_{size}_verify.pkl',
+                    f'output/phase5_logs_metadata_{size}_verify.json',
+                    '--verify'
+                ], capture_output=True, text=True, cwd='.')
+                
+                if result.returncode != 0:
+                    print(f"  ❌ Phase 5 verification failed for {size}")
+                    print(f"     Error: {result.stderr}")
+                    verification_success = False
+                else:
+                    print(f"  ✅ Phase 5 verification passed for {size}")
+                
+                # Clean up verification files
+                verify_files = [
+                    f'output/phase5_logs_{size}_verify.pkl',
+                    f'output/phase5_logs_metadata_{size}_verify.json'
+                ]
+                for vf in verify_files:
+                    if Path(vf).exists():
+                        Path(vf).unlink()
+                        
+            except Exception as e:
+                print(f"  ❌ Phase 5 verification error for {size}: {e}")
+                verification_success = False
+        else:
+            print(f"  ⚠️  Phase 5 data not found for {size}, skipping verification")
+    
+    if verification_success:
+        print("\n✅ All verification tests passed! Data integrity confirmed.")
+    else:
+        print("\n❌ Some verification tests failed! Please check the errors above.")
+    
+    return verification_success
+
+
 def main():
+    import sys
     parser = argparse.ArgumentParser(description='Run log compression pipeline')
     parser.add_argument('--size', choices=['small', 'big', 'huge'], 
                        help='Run for specific size only')
-    parser.add_argument('--phase', type=int, choices=[0, 1, 2],
+    parser.add_argument('--phase', type=int, choices=[0, 1, 2, 3, 4, 5],
                        help='Run specific phase only (requires --size)')
     parser.add_argument('--force-regen', action='store_true',
                        help='Force regeneration of Phase 0 data even if cached')
+    parser.add_argument('--verify', action='store_true',
+                       help='Run verification tests on all phases to ensure data integrity')
     
     args = parser.parse_args()
     
@@ -376,6 +469,13 @@ def main():
     if not args.phase:  # Only show comprehensive results when running all phases
         print_comprehensive_results(sizes)
         print_file_sizes()
+    
+    # Run verification tests if requested
+    if args.verify:
+        verification_success = run_verification_tests(sizes)
+        if not verification_success:
+            print("❌ Verification tests failed!")
+            return 1
     
     # Summary
     elapsed_time = time.time() - start_time

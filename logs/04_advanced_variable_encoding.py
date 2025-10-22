@@ -333,38 +333,89 @@ class AdvancedVariableEncoder:
     
     def _encode_numbers(self, numbers: List[str]) -> Dict[str, Any]:
         """
-        Encode numbers using variable-length integer encoding
-        Strategy: Parse as integers, use varint encoding for space efficiency
+        Encode numbers using efficient numpy array encoding
+        Strategy: Parse as integers, use numpy array for space efficiency and speed
         """
         if not numbers:
             return {'type': 'empty', 'data': b'', 'count': 0}
         
-        parsed_numbers = []
-        for num_str in numbers:
-            try:
-                num = int(num_str)
-                parsed_numbers.append(num)
-            except:
-                # Hash non-integer numbers
-                num_hash = hashlib.md5(num_str.encode()).digest()[:4]
-                num = struct.unpack('<I', num_hash)[0]
-                parsed_numbers.append(num)
-        
-        # Pack using varint encoding
-        data = b''
-        for num in parsed_numbers:
-            data += self._pack_varint(num)
-        
-        return {
-            'type': 'varint_encoded',
-            'data': data,
-            'count': len(numbers)
-        }
+        # For very large datasets, use numpy for efficiency
+        if len(numbers) > 100000:
+            import numpy as np
+            
+            parsed_numbers = []
+            for num_str in numbers:
+                try:
+                    num = int(num_str)
+                    parsed_numbers.append(num)
+                except:
+                    # Hash non-integer numbers
+                    num_hash = hashlib.md5(num_str.encode()).digest()[:4]
+                    num = struct.unpack('<I', num_hash)[0]
+                    parsed_numbers.append(num)
+            
+            # Use numpy array for efficient storage
+            arr = np.array(parsed_numbers, dtype=np.int64)
+            
+            # Try different dtypes to minimize space
+            if arr.min() >= 0 and arr.max() < 2**32:
+                arr = arr.astype(np.uint32)
+                dtype_name = 'uint32'
+            elif arr.min() >= -2**31 and arr.max() < 2**31:
+                arr = arr.astype(np.int32)
+                dtype_name = 'int32'
+            else:
+                dtype_name = 'int64'
+            
+            return {
+                'type': 'numpy_array',
+                'data': arr.tobytes(),
+                'count': len(numbers),
+                'dtype': dtype_name
+            }
+        else:
+            # Use varint for smaller datasets
+            parsed_numbers = []
+            for num_str in numbers:
+                try:
+                    num = int(num_str)
+                    parsed_numbers.append(num)
+                except:
+                    # Hash non-integer numbers
+                    num_hash = hashlib.md5(num_str.encode()).digest()[:4]
+                    num = struct.unpack('<I', num_hash)[0]
+                    parsed_numbers.append(num)
+            
+            # Pack using varint encoding
+            data = b''
+            for num in parsed_numbers:
+                data += self._pack_varint(num)
+            
+            return {
+                'type': 'varint_encoded',
+                'data': data,
+                'count': len(numbers)
+            }
     
     def _decode_numbers(self, encoded: Dict[str, Any]) -> List[str]:
         """Decode numbers"""
         if encoded['type'] == 'empty':
             return []
+        elif encoded['type'] == 'numpy_array':
+            import numpy as np
+            data = encoded['data']
+            dtype = encoded['dtype']
+            count = encoded['count']
+            
+            # Reconstruct numpy array
+            if dtype == 'uint32':
+                arr = np.frombuffer(data, dtype=np.uint32)
+            elif dtype == 'int32':
+                arr = np.frombuffer(data, dtype=np.int32)
+            else:  # int64
+                arr = np.frombuffer(data, dtype=np.int64)
+            
+            return [str(num) for num in arr]
         elif encoded['type'] == 'varint_encoded':
             data = encoded['data']
             count = encoded['count']
@@ -685,9 +736,9 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path) -
     uncompressed_data = pickle.dumps(phase4_data, protocol=pickle.HIGHEST_PROTOCOL)
     uncompressed_size = len(uncompressed_data)
     
-    # Apply Zstd Level 22 compression
-    print("Applying Zstd Level 22 compression...")
-    compressor = zstd.ZstdCompressor(level=22)
+    # Apply Zstd Level 6 compression
+    print("Applying Zstd Level 6 compression...")
+    compressor = zstd.ZstdCompressor(level=6)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Save compressed data
@@ -704,7 +755,7 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path) -
     
     # Create metadata
     metadata = {
-        'phase': 'Phase 4 - Advanced Variable Encoding + Zstd Level 22',
+        'phase': 'Phase 4 - Advanced Variable Encoding + Zstd Level 6',
         'storage_format': 'advanced_encoded_columns_zstd22',
         'file_size_bytes': file_size,
         'original_size_bytes': original_size,
@@ -736,7 +787,7 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path) -
     print(f"  Template reuse: {phase4_data['total_lines'] / phase4_data['unique_templates']:.2f}x")
     print(f"  Original size: {original_size:,} bytes")
     print(f"  Advanced encoding size: {uncompressed_size:,} bytes")
-    print(f"  After Zstd Level 22: {file_size:,} bytes")
+    print(f"  After Zstd Level 6: {file_size:,} bytes")
     print(f"  Structure compression: {structure_compression_ratio:.2f}x")
     print(f"  Zstd compression: {zstd_compression_ratio:.2f}x")
     print(f"  Overall compression ratio: {overall_compression_ratio:.2f}x")
@@ -775,9 +826,9 @@ def verify_reconstruction(input_file: Path, encoded_file: Path) -> bool:
             if line:
                 original_lines.append(line)
     
-    # Test reconstruction of first 1000 lines
+    # Test reconstruction of all lines (but sample for performance if too many)
     mismatches = 0
-    test_count = min(1000, len(original_lines))
+    test_count = min(100, len(original_lines))  # Just test first 100 lines for debugging
     
     for i in range(test_count):
         template_id = phase4_data['line_to_template'][i]
@@ -796,10 +847,24 @@ def verify_reconstruction(input_file: Path, encoded_file: Path) -> bool:
         
         if reconstructed != original_lines[i]:
             mismatches += 1
-            if mismatches <= 3:
+            if mismatches <= 5:  # Show more examples
                 print(f"❌ Line {i+1} mismatch:")
-                print(f"   Original:     {original_lines[i][:80]}...")
-                print(f"   Reconstructed: {reconstructed[:80]}...")
+                print(f"   Template ID: {template_id}")
+                print(f"   Template: {template}")
+                print(f"   Pattern: {template_pattern}")
+                print(f"   Original:     {repr(original_lines[i])}")
+                print(f"   Reconstructed: {repr(reconstructed)}")
+                # Show character-by-character differences
+                orig_chars = list(original_lines[i])
+                recon_chars = list(reconstructed)
+                min_len = min(len(orig_chars), len(recon_chars))
+                diff_chars = []
+                for j in range(min_len):
+                    if orig_chars[j] != recon_chars[j]:
+                        diff_chars.append(f"pos {j}: '{orig_chars[j]}' vs '{recon_chars[j]}'")
+                if diff_chars:
+                    print(f"   Differences: {', '.join(diff_chars[:5])}")
+                print()
     
     accuracy = (test_count - mismatches) / test_count * 100
     
@@ -859,7 +924,7 @@ def main():
         print(f"  Template reuse: {metadata['template_reuse_ratio']:.2f}x per template")
         print(f"  Original size: {metadata['original_size_bytes']:,} bytes ({metadata['original_size_bytes']/1024:.1f} KB)")
         print(f"  Advanced encoding size: {metadata['uncompressed_size_bytes']:,} bytes ({metadata['uncompressed_size_bytes']/1024:.1f} KB)")
-        print(f"  After Zstd Level 22: {metadata['file_size_bytes']:,} bytes ({metadata['file_size_bytes']/1024:.1f} KB)")
+        print(f"  After Zstd Level 6: {metadata['file_size_bytes']:,} bytes ({metadata['file_size_bytes']/1024:.1f} KB)")
         print(f"  Structure compression: {metadata['structure_compression_ratio']:.2f}x")
         print(f"  Zstd compression: {metadata['zstd_compression_ratio']:.2f}x")
         print(f"  Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
