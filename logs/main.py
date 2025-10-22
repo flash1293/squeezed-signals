@@ -160,6 +160,40 @@ def run_phase_3(size: str) -> bool:
         return False
 
 
+def run_phase_4(size: str) -> bool:
+    """Run Phase 4: Advanced variable encoding"""
+    print("\n🔄 Phase 4: Advanced Variable Encoding")
+    print("-" * 50)
+    
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("phase4", "04_advanced_variable_encoding.py")
+        phase4_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(phase4_module)
+        
+        input_file = Path(f'output/logs_{size}.log')
+        output_file = Path(f'output/phase4_logs_{size}.pkl')
+        metadata_file = Path(f'output/phase4_logs_metadata_{size}.json')
+        
+        # Check if input exists
+        if not input_file.exists():
+            print(f"❌ Input file not found: {input_file}")
+            return False
+        
+        # Run processing
+        metadata = phase4_module.process_log_file(input_file, output_file, metadata_file)
+        
+        print(f"✅ Phase 4 completed successfully")
+        print(f"   Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
+        print(f"   Structure compression: {metadata['structure_compression_ratio']:.2f}x")
+        print(f"   Space saved: {(1 - metadata['file_size_bytes']/metadata['original_size_bytes'])*100:.1f}%")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Phase 4 failed: {e}")
+        return False
+
+
 def print_comprehensive_results(sizes: List[str]):
     """Print comprehensive results across all phases and sizes"""
     print("\n" + "=" * 70)
@@ -170,6 +204,7 @@ def print_comprehensive_results(sizes: List[str]):
         ('Phase 1 (Baseline)', 'phase1'),
         ('Phase 2 (Zstd L22)', 'phase2'),
         ('Phase 3 (Template+Col)', 'phase3'),
+        ('Phase 4 (Advanced Enc)', 'phase4'),
     ]
     
     print(f"{'Phase':<20} {'Dataset':<8} {'Lines':<8} {'Original':<12} {'Compressed':<12} {'Ratio':<8} {'Saved':<8}")
@@ -252,7 +287,7 @@ def main():
             return 1
         phases = [args.phase]
     else:
-        phases = [0, 1, 2, 3]
+        phases = [0, 1, 2, 3, 4]
     
     print("🚀 Log Compression Pipeline")
     print("=" * 40)
@@ -286,6 +321,10 @@ def main():
                     break
             elif phase == 3:
                 if not run_phase_3(size):
+                    size_success = False
+                    break
+            elif phase == 4:
+                if not run_phase_4(size):
                     size_success = False
                     break
         
