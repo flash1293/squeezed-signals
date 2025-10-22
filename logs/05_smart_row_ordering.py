@@ -23,6 +23,98 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 from collections import defaultdict
 import heapq
+import struct
+
+
+def encode_order_mapping_efficient(order_mapping: List[int]) -> bytes:
+    """
+    Efficiently encode the order mapping using delta encoding + variable-length integers + bitpacking
+    
+    Strategy:
+    1. Delta encode: store first value + deltas
+    2. Use variable-length encoding for small deltas  
+    3. Apply final compression
+    """
+    if not order_mapping:
+        return b''
+    
+    # Delta encode
+    deltas = [order_mapping[0]]  # Start with first value
+    for i in range(1, len(order_mapping)):
+        delta = order_mapping[i] - order_mapping[i-1]
+        deltas.append(delta)
+    
+    # Encode using variable-length integers (varint)
+    def encode_varint(value: int) -> bytes:
+        """Encode integer as variable-length bytes (like protobuf)"""
+        # Handle negative numbers by zigzag encoding
+        if value < 0:
+            value = (-value << 1) | 1
+        else:
+            value = value << 1
+            
+        result = b''
+        while value >= 0x80:
+            result += bytes([value & 0x7F | 0x80])
+            value >>= 7
+        result += bytes([value & 0x7F])
+        return result
+    
+    # Encode all deltas
+    encoded_data = b''
+    for delta in deltas:
+        encoded_data += encode_varint(delta)
+    
+    # Add length prefix for decoding
+    length_bytes = struct.pack('<I', len(order_mapping))
+    
+    return length_bytes + encoded_data
+
+
+def decode_order_mapping_efficient(encoded_data: bytes) -> List[int]:
+    """Decode the efficiently encoded order mapping"""
+    if not encoded_data:
+        return []
+    
+    # Extract length
+    length = struct.unpack('<I', encoded_data[:4])[0]
+    data = encoded_data[4:]
+    
+    def decode_varint(data: bytes, offset: int) -> Tuple[int, int]:
+        """Decode variable-length integer, return (value, new_offset)"""
+        result = 0
+        shift = 0
+        pos = offset
+        
+        while pos < len(data):
+            byte = data[pos]
+            result |= (byte & 0x7F) << shift
+            pos += 1
+            if (byte & 0x80) == 0:
+                break
+            shift += 7
+        
+        # Zigzag decode
+        if result & 1:
+            value = -(result >> 1)
+        else:
+            value = result >> 1
+            
+        return value, pos
+    
+    # Decode all deltas
+    deltas = []
+    offset = 0
+    for _ in range(length):
+        delta, offset = decode_varint(data, offset)
+        deltas.append(delta)
+    
+    # Reconstruct original mapping from deltas
+    order_mapping = [deltas[0]]  # First value
+    for i in range(1, len(deltas)):
+        order_mapping.append(order_mapping[-1] + deltas[i])
+    
+    return order_mapping
 
 
 class SmartRowOrderer:
@@ -363,20 +455,40 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
     
     # Only store ordering metadata if order preservation is enabled
     if not drop_order:
-        # Compress the ordering mapping efficiently
+        # Efficiently encode the ordering mapping
         import array
-        # Use array of 32-bit integers instead of Python list for compactness
-        mapping_array = array.array('I', original_order_mapping)  # 'I' = unsigned int (4 bytes each)
-        compressed_mapping = zstd.ZstdCompressor(level=22).compress(mapping_array.tobytes())
         
         print(f"  Ordering mapping: {len(original_order_mapping):,} entries")
-        print(f"  Mapping raw size: {len(mapping_array.tobytes()):,} bytes")
-        print(f"  Mapping compressed: {len(compressed_mapping):,} bytes")
+        
+        # Try different encoding strategies and pick the best
+        raw_array = array.array('I', original_order_mapping)
+        raw_size = len(raw_array.tobytes())
+        
+        # Strategy 1: Simple array + Zstd
+        simple_compressed = zstd.ZstdCompressor(level=22).compress(raw_array.tobytes())
+        
+        # Strategy 2: Delta encoding + varint + Zstd  
+        delta_encoded = encode_order_mapping_efficient(original_order_mapping)
+        delta_compressed = zstd.ZstdCompressor(level=22).compress(delta_encoded)
+        
+        print(f"  Mapping raw size: {raw_size:,} bytes")
+        print(f"  Simple + Zstd: {len(simple_compressed):,} bytes ({raw_size/len(simple_compressed):.1f}x)")
+        print(f"  Delta + varint + Zstd: {len(delta_compressed):,} bytes ({raw_size/len(delta_compressed):.1f}x)")
+        
+        # Choose the better compression
+        if len(delta_compressed) < len(simple_compressed):
+            compressed_mapping = delta_compressed
+            mapping_format = 'delta_varint_zstd'
+            print(f"  Using delta encoding (saves {len(simple_compressed) - len(delta_compressed):,} bytes)")
+        else:
+            compressed_mapping = simple_compressed  
+            mapping_format = 'uint32_array_zstd'
+            print(f"  Using simple encoding (delta not beneficial)")
         
         phase5_data['ordering_metadata'] = {
             'strategy': strategy,
-            'original_order_mapping_compressed': compressed_mapping,  # Store compressed mapping
-            'mapping_format': 'uint32_array_zstd',
+            'original_order_mapping_compressed': compressed_mapping,
+            'mapping_format': mapping_format,
             'compression_benefits': benefits,
             'ordering_timestamp': time.time(),
             'phase4_preserved': True  # Flag that we kept Phase 4 optimizations
@@ -477,14 +589,22 @@ def verify_reconstruction(input_file: Path, output_file: Path) -> bool:
     ordering_metadata = phase5_data['ordering_metadata']
     
     if 'original_order_mapping_compressed' in ordering_metadata:
-        # New compressed format
+        # Decompress the mapping
         compressed_mapping = ordering_metadata['original_order_mapping_compressed']
         decompressed_mapping_bytes = zstd.ZstdDecompressor().decompress(compressed_mapping)
         
-        import array
-        mapping_array = array.array('I')
-        mapping_array.frombytes(decompressed_mapping_bytes)
-        original_order_mapping = mapping_array.tolist()
+        # Decode based on format
+        mapping_format = ordering_metadata.get('mapping_format', 'uint32_array_zstd')
+        
+        if mapping_format == 'delta_varint_zstd':
+            # New delta + varint encoding
+            original_order_mapping = decode_order_mapping_efficient(decompressed_mapping_bytes)
+        else:
+            # Legacy uint32 array format
+            import array
+            mapping_array = array.array('I')
+            mapping_array.frombytes(decompressed_mapping_bytes)
+            original_order_mapping = mapping_array.tolist()
     else:
         # Old uncompressed format (fallback)
         original_order_mapping = ordering_metadata.get('original_order_mapping', [])
@@ -496,6 +616,7 @@ def verify_reconstruction(input_file: Path, output_file: Path) -> bool:
     print(f"  Loaded {phase5_data['total_lines']:,} lines")
     print(f"  Strategy used: {ordering_metadata['strategy']}")
     print(f"  Order mapping preserved: {len(original_order_mapping):,} entries")
+    print(f"  Mapping format: {ordering_metadata.get('mapping_format', 'legacy')}")
     
     # For verification, we'd need to decode variables and reconstruct original lines
     # For now, just verify that the ordering mapping is consistent
