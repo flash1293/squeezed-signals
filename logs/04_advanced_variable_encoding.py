@@ -46,6 +46,7 @@ class AdvancedVariableEncoder:
             'BRACKET_TIME': self._encode_bracket_timestamps,
             'IP': self._encode_ip_addresses,
             'PATH': self._encode_file_paths,
+            'IDENTIFIER': self._encode_identifiers,
             'NUM': self._encode_numbers,
             'HEX': self._encode_hex_strings,
             'UUID': self._encode_uuids,
@@ -56,6 +57,7 @@ class AdvancedVariableEncoder:
             'BRACKET_TIME': self._decode_bracket_timestamps,
             'IP': self._decode_ip_addresses,
             'PATH': self._decode_file_paths,
+            'IDENTIFIER': self._decode_identifiers,
             'NUM': self._decode_numbers,
             'HEX': self._decode_hex_strings,
             'UUID': self._decode_uuids,
@@ -328,6 +330,64 @@ class AdvancedVariableEncoder:
                     paths.append('/' + '/'.join(components))
             
             return paths
+        
+        return []
+    
+    def _encode_identifiers(self, identifiers: List[str]) -> Dict[str, Any]:
+        """
+        Encode identifier strings using dictionary compression
+        Strategy: Similar to paths, use dictionary encoding for repeated patterns
+        """
+        if not identifiers:
+            return {'type': 'empty', 'data': b'', 'count': 0}
+        
+        # Use simple dictionary encoding for identifiers
+        unique_identifiers = list(set(identifiers))
+        identifier_to_index = {identifier: idx for idx, identifier in enumerate(unique_identifiers)}
+        
+        indices = [identifier_to_index[identifier] for identifier in identifiers]
+        
+        # Pack the data
+        dict_data = '\n'.join(unique_identifiers).encode('utf-8')
+        indices_data = struct.pack(f'<{len(indices)}H', *indices)
+        
+        packed_data = struct.pack('<I', len(unique_identifiers)) + dict_data + indices_data
+        
+        return {
+            'type': 'dictionary_encoded',
+            'data': packed_data,
+            'count': len(identifiers),
+            'compression_ratio': len(''.join(identifiers)) / len(packed_data) if packed_data else 1.0
+        }
+    
+    def _decode_identifiers(self, encoded: Dict[str, Any]) -> List[str]:
+        """Decode identifier strings"""
+        if encoded['type'] == 'empty':
+            return []
+        elif encoded['type'] == 'dictionary_encoded':
+            data = encoded['data']
+            count = encoded['count']
+            
+            # Unpack dictionary size
+            dict_size = struct.unpack('<I', data[:4])[0]
+            
+            # Find the separator between dictionary and indices
+            dict_end = 4
+            newline_count = 0
+            while newline_count < dict_size - 1:
+                if data[dict_end] == ord('\n'):
+                    newline_count += 1
+                dict_end += 1
+            
+            # Extract dictionary
+            dict_data = data[4:dict_end + (len(data) - dict_end - count * 2)]
+            identifier_dict = dict_data.decode('utf-8').split('\n')
+            
+            # Extract indices
+            indices_data = data[-count * 2:]
+            indices = struct.unpack(f'<{count}H', indices_data)
+            
+            return [identifier_dict[idx] for idx in indices]
         
         return []
     

@@ -46,8 +46,9 @@ class LogTemplateExtractor:
             (r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\b', '<TIMESTAMP>'),  # Syslog format like "Dec 10 06:55:46"
             (r'\[\w+\s+\w+\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}\]', '<BRACKET_TIME>'),  # [Thu Jun 09 06:07:04 2005]
             (r'/[^\s\]]+', '<PATH>'),                   # File paths (not ending with ])
+            (r'\b\w*_-?\d+\b', '<IDENTIFIER>'),        # Identifiers with numbers like blk_123, blk_-123, job_456
             (r'\b[0-9a-f]*[a-f][0-9a-f]{7,}\b', '<HEX>'), # Hex strings (must contain at least one a-f letter and be 8+ chars total)
-            (r'\b\d+\b', '<NUM>'),                     # Numbers (last to avoid conflicts)
+            (r'\b-?\d+\b', '<NUM>'),                   # Numbers (including negative)
         ]
         
         # Optimized columnar storage
@@ -57,6 +58,7 @@ class LogTemplateExtractor:
             'TIMESTAMP': [],    # ISO timestamps
             'BRACKET_TIME': [], # Bracket timestamps
             'PATH': [],         # File paths
+            'IDENTIFIER': [],   # Identifiers with numbers like blk_123
             'HEX': [],          # Hex strings
             'NUM': [],          # Numbers (stored as strings for now, could be int-encoded later)
         }
