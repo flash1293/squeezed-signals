@@ -194,6 +194,41 @@ def run_phase_4(size: str) -> bool:
         return False
 
 
+def run_phase_5(size: str) -> bool:
+    """Run Phase 5: Smart row ordering"""
+    print("\n🔄 Phase 5: Smart Row Ordering")
+    print("-" * 50)
+    
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("phase5", "05_smart_row_ordering.py")
+        phase5_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(phase5_module)
+        
+        input_file = Path(f'output/logs_{size}.log')
+        output_file = Path(f'output/phase5_logs_{size}.pkl')
+        metadata_file = Path(f'output/phase5_logs_metadata_{size}.json')
+        
+        # Check if input exists
+        if not input_file.exists():
+            print(f"❌ Input file not found: {input_file}")
+            return False
+        
+        # Run processing with hybrid optimal strategy
+        metadata = phase5_module.process_log_file(input_file, output_file, metadata_file, strategy='hybrid_optimal')
+        
+        print(f"✅ Phase 5 completed successfully")
+        print(f"   Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
+        print(f"   Improvement over Phase 4: {metadata['phase5_improvement_ratio']:.2f}x")
+        print(f"   Strategy: {metadata['strategy']}")
+        print(f"   Space saved: {(1 - metadata['file_size_bytes']/metadata['original_size_bytes'])*100:.1f}%")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Phase 5 failed: {e}")
+        return False
+
+
 def print_comprehensive_results(sizes: List[str]):
     """Print comprehensive results across all phases and sizes"""
     print("\n" + "=" * 70)
@@ -205,6 +240,7 @@ def print_comprehensive_results(sizes: List[str]):
         ('Phase 2 (Zstd L22)', 'phase2'),
         ('Phase 3 (Template+Col)', 'phase3'),
         ('Phase 4 (Advanced Enc)', 'phase4'),
+        ('Phase 5 (Smart Ordering)', 'phase5'),
     ]
     
     print(f"{'Phase':<20} {'Dataset':<8} {'Lines':<8} {'Original':<12} {'Compressed':<12} {'Ratio':<8} {'Saved':<8}")
@@ -287,7 +323,7 @@ def main():
             return 1
         phases = [args.phase]
     else:
-        phases = [0, 1, 2, 3, 4]
+        phases = [0, 1, 2, 3, 4, 5]
     
     print("🚀 Log Compression Pipeline")
     print("=" * 40)
@@ -325,6 +361,10 @@ def main():
                     break
             elif phase == 4:
                 if not run_phase_4(size):
+                    size_success = False
+                    break
+            elif phase == 5:
+                if not run_phase_5(size):
                     size_success = False
                     break
         
