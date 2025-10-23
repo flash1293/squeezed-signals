@@ -9,7 +9,7 @@ This repository demonstrates the progressive optimization of observability data 
 ---
 config:
   xyChart:
-    height: 300
+    height: 200
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
@@ -26,7 +26,7 @@ xychart-beta
 ---
 config:
   xyChart:
-    height: 300
+    height: 200
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
@@ -43,7 +43,7 @@ xychart-beta
 ---
 config:
   xyChart:
-    height: 300
+    height: 200
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
