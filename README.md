@@ -6,8 +6,8 @@ This repository demonstrates the progressive optimization of observability data 
 
 ### Metrics Compression
 ```mermaid
-%%{init: {"mermaid": {"panControls": false}} }%%
 ---
+%%{init: {"mermaid": {"panControls": false}} }%%
 config:
   xyChart:
     height: 200
@@ -23,8 +23,8 @@ xychart-beta
 
 ### Traces Compression
 ```mermaid
-%%{init: {"mermaid": {"panControls": false}} }%%
 ---
+%%{init: {"mermaid": {"panControls": false}} }%%
 config:
   xyChart:
     height: 200
@@ -40,8 +40,8 @@ xychart-beta
 
 ### Logs Compression
 ```mermaid
-%%{init: {"mermaid": {"panControls": false}} }%%
 ---
+%%{init: {"mermaid": {"panControls": false}} }%%
 config:
   xyChart:
     height: 200
@@ -49,7 +49,6 @@ config:
     xyChart:
       backgroundColor: "transparent"
 ---
-%%{init: {"mermaid": {"panControls": false}} }%%
 xychart-beta
   x-axis ["Plain Text", "Zstd", "Template Extract", "Variable Encode", "Smart Order", "Drop Order"]
   y-axis "Compression Ratio" 0 --> 60
