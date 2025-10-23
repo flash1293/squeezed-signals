@@ -11,6 +11,7 @@ config:
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
+      height: 300
 ---
 xychart-beta
   title "Metrics: Time-Series Compression Journey"
@@ -26,6 +27,7 @@ config:
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
+      height: 300
 ---
 xychart-beta
   title "Traces: Distributed Execution Optimization"
@@ -41,6 +43,7 @@ config:
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
+      height: 300
 ---
 xychart-beta
   title "Logs: Structured Text Compression"
