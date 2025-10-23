@@ -1,20 +1,6 @@
-# Squeezed Signals: The Evolution of Observabili### Logs: 50.9x Compression (554.6 KB → 10.9 KB)
+# Squeezed Signals: The Evolution of Observability Data Storage
 
-```mermaid
----
-config:
-  themeVariables:
-    xyChart:
-      backgroundColor: "transparent"
----
-xychart-beta
-    title "Logs Storage Size by Phase"
-    x-axis ["P1: Plain", "P2: Zstd", "P3: Templates", "P4: Var Enc", "P5: Smart", "P6: Drop"]
-    y-axis "Size (KB)" 0 --> 600
-    bar [554.6, 19.1, 15.3, 13.9, 13.1, 10.9]
-```
-
-## 🚀 Getting Starteds repository demonstrates the progressive optimization of observability data storage across **metrics**, **traces**, and **logs**.
+This repository demonstrates the progressive optimization of observability data storage across **metrics**, **traces**, and **logs**.
 
 ## 🎯 Project Overview
 
@@ -31,33 +17,39 @@ Each signal type presents unique storage optimization opportunities and challeng
 ### Metrics: 79.7x Compression (80.8 MB → 1.0 MB)
 
 ```mermaid
----
-config:
-  themeVariables:
-    xyChart:
-      backgroundColor: "transparent"
----
-xychart-beta
-    title "Metrics Storage Size by Phase"
-    x-axis ["P1: NDJSON", "P2: CBOR", "P3: CBOR+Zstd", "P4: Binary Table", "P5: Columnar", "P6: Enhanced", "P7: Downsampled"]
-    y-axis "Size (MB)" 0 --> 85
-    bar [80.8, 63.9, 3.8, 2.7, 2.0, 1.0, 0.9]
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#f0f0f0'}}}%%
+graph LR
+    A["Phase 1<br/>NDJSON<br/>80.8 MB<br/>(1.0x)"] --> B["Phase 2<br/>CBOR<br/>63.9 MB<br/>(1.3x)"]
+    B --> C["Phase 3<br/>CBOR+Zstd<br/>3.8 MB<br/>(21.1x)"]
+    C --> D["Phase 4<br/>Binary Table<br/>2.7 MB<br/>(29.4x)"]
+    D --> E["Phase 5<br/>Columnar<br/>2.0 MB<br/>(40.2x)"]
+    E --> F["Phase 6<br/>Enhanced<br/>1.0 MB<br/>(79.7x)"]
+    F --> G["Phase 7<br/>Downsampled<br/>0.9 MB<br/>(90.4x)"]
+    
+    style A fill:#ff6b6b
+    style B fill:#ffa06b
+    style C fill:#ffd56b
+    style D fill:#d4ff6b
+    style E fill:#9fff6b
+    style F fill:#6bffb4
+    style G fill:#6be0ff
 ```
 
 ### Traces: 25.0x Compression (134.3 KB → 5.4 KB)
 
 ```mermaid
----
-config:
-  themeVariables:
-    xyChart:
-      backgroundColor: "transparent"
----
-xychart-beta
-    title "Traces Storage Size by Phase"
-    x-axis ["P1: NDJSON", "P2: CBOR", "P3: CBOR+Zstd", "P4: Relationships", "P5: Columnar"]
-    y-axis "Size (KB)" 0 --> 140
-    bar [134.3, 74.8, 11.3, 6.4, 5.4]
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#f0f0f0'}}}%%
+graph LR
+    A["Phase 1<br/>NDJSON<br/>134.3 KB<br/>(1.0x)"] --> B["Phase 2<br/>CBOR<br/>74.8 KB<br/>(1.8x)"]
+    B --> C["Phase 3<br/>CBOR+Zstd<br/>11.3 KB<br/>(11.9x)"]
+    C --> D["Phase 4<br/>Relationships<br/>6.4 KB<br/>(21.0x)"]
+    D --> E["Phase 5<br/>Columnar<br/>5.4 KB<br/>(25.0x)"]
+    
+    style A fill:#ff6b6b
+    style B fill:#ffa06b
+    style C fill:#ffd56b
+    style D fill:#9fff6b
+    style E fill:#6bffb4
 ```
 
 ### Logs: 50.9x Compression (554.6 KB → 10.9 KB)
