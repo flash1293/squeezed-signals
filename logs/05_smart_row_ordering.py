@@ -390,7 +390,7 @@ def calculate_compression_benefit(original_data: Dict[str, Any], reordered_data:
     reordered_template_data = pickle.dumps(reordered_data['line_to_template'])
     
     # Compress both with zstd
-    compressor = zstd.ZstdCompressor(level=6)
+    compressor = zstd.ZstdCompressor(level=22)
     
     original_compressed = compressor.compress(original_template_data)
     reordered_compressed = compressor.compress(reordered_template_data)
@@ -465,11 +465,11 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
         raw_size = len(raw_array.tobytes())
         
         # Strategy 1: Simple array + Zstd
-        simple_compressed = zstd.ZstdCompressor(level=6).compress(raw_array.tobytes())
+        simple_compressed = zstd.ZstdCompressor(level=22).compress(raw_array.tobytes())
         
         # Strategy 2: Delta encoding + varint + Zstd  
         delta_encoded = encode_order_mapping_efficient(original_order_mapping)
-        delta_compressed = zstd.ZstdCompressor(level=6).compress(delta_encoded)
+        delta_compressed = zstd.ZstdCompressor(level=22).compress(delta_encoded)
         
         print(f"  Mapping raw size: {raw_size:,} bytes")
         print(f"  Simple + Zstd: {len(simple_compressed):,} bytes ({raw_size/len(simple_compressed):.1f}x)")
@@ -513,9 +513,9 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
     uncompressed_data = pickle.dumps(phase5_data, protocol=pickle.HIGHEST_PROTOCOL)
     uncompressed_size = len(uncompressed_data)
     
-    # Apply Zstd Level 6 compression (same as Phase 4)
-    print("Applying Zstd Level 6 compression...")
-    compressor = zstd.ZstdCompressor(level=6)
+    # Apply Zstd Level 22 compression (same as other phases)
+    print("Applying Zstd Level 22 compression...")
+    compressor = zstd.ZstdCompressor(level=22)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Save compressed data
@@ -553,7 +553,7 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
         'processing_time_seconds': processing_time,
         'optimizations_stack': {
             'phase1_baseline': True,
-            'phase2_zstd_level6': True,
+            'phase2_zstd_level22': True,
             'phase3_template_extraction': True,
             'phase4_advanced_variable_encoding': True,
             'phase5_smart_row_ordering': True
@@ -665,7 +665,7 @@ def main():
         print(f"  Strategy: {metadata['strategy']}")
         print(f"  Original size: {metadata['original_size_bytes']:,} bytes ({metadata['original_size_bytes']/1024:.1f} KB)")
         print(f"  Reordered size: {metadata['uncompressed_size_bytes']:,} bytes ({metadata['uncompressed_size_bytes']/1024:.1f} KB)")
-        print(f"  After Zstd Level 6: {metadata['file_size_bytes']:,} bytes ({metadata['file_size_bytes']/1024:.1f} KB)")
+        print(f"  After Zstd Level 22: {metadata['file_size_bytes']:,} bytes ({metadata['file_size_bytes']/1024:.1f} KB)")
         print(f"  Structure compression: {metadata['structure_compression_ratio']:.2f}x")
         print(f"  Zstd compression: {metadata['zstd_compression_ratio']:.2f}x")
         print(f"  Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")

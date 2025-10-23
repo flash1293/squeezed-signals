@@ -4,7 +4,7 @@ Applies Zstandard (Zstd) compression algorithm to plain text logs. Establishes w
 
 ## Algorithm
 
-Zstd Level 6 (balanced speed vs. compression):
+Zstd Level 22 (maximum compression):
 - Dictionary-based compression
 - Recognizes repeated patterns
 - Entropy coding
@@ -12,11 +12,28 @@ Zstd Level 6 (balanced speed vs. compression):
 
 ## Results
 
-**HDFS small dataset:**
-- Input: 554.6 KB (plain text)
-- Output: 19.1 KB (compressed)
-- Compression: **29.1x**
-- Bytes per line: 9.8 (down from 283.9)
+**Apache dataset (56,482 lines):**
+- Input: 5.0 MB (plain text)
+- Output: 173 KB (compressed)
+- Compression: **29.0x**
+- Bytes per line: 3.1 (down from 90.9)
+
+**HDFS dataset (74,859 lines):**
+- Input: 10.0 MB (plain text)
+- Output: 602 KB (compressed)
+- Compression: **17.0x**
+- Bytes per line: 8.2 (down from 139.8)
+
+**OpenSSH dataset (655,147 lines):**
+- Input: 69.4 MB (plain text)
+- Output: 2.9 MB (compressed)
+- Compression: **24.5x**
+- Bytes per line: 4.5 (down from 111.0)
+
+**Level 22 vs Level 6:**
+- Maximum compression provides 1.5-1.7x improvement over balanced compression
+- Slower compression speed (~10x) but same decompression speed
+- Worth it for archival/storage optimization
 
 ## How It Works
 
@@ -37,16 +54,19 @@ Zstd Level 6 (balanced speed vs. compression):
 
 ## What Compresses Well
 
-**Repeated templates:** ~33x compression
-- Static log patterns repeat frequently
-- Dictionary captures full templates
+**Repeated templates:** 
+- Apache: 38 templates for 56k lines → excellent compression
+- HDFS: 18 templates for 75k lines → best reuse ratio
+- OpenSSH: 5,669 templates for 655k lines → moderate entropy
 
-**Variable values:** ~24x compression
+**Variable values:**
 - Repeated IPs, IDs compress well
 - Numbers have patterns
+- Depends on cardinality
 
-**Whitespace/structure:** ~30x compression
+**Whitespace/structure:**
 - Consistent formatting compresses easily
+- Log format matters significantly
 
 ## Limitations
 

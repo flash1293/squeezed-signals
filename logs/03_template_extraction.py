@@ -255,14 +255,14 @@ class LogTemplateExtractor:
         }
     
     def save_to_file(self, output_path: Path) -> Dict[str, Any]:
-        """Save the extracted templates and variables with Zstd Level 6 compression"""
+        """Save the extracted templates and variables with Zstd Level 22 compression"""
         
         # Serialize data to bytes first
         data_bytes = pickle.dumps(self.extracted_data, protocol=pickle.HIGHEST_PROTOCOL)
         uncompressed_size = len(data_bytes)
         
-        # Apply Zstd Level 6 compression on top of template extraction
-        compressor = zstd.ZstdCompressor(level=6)
+        # Apply Zstd Level 22 compression on top of template extraction
+        compressor = zstd.ZstdCompressor(level=22)
         compressed_data = compressor.compress(data_bytes)
         
         # Save compressed data

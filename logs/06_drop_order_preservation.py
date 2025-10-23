@@ -97,9 +97,9 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
     uncompressed_data = pickle.dumps(phase6_data, protocol=pickle.HIGHEST_PROTOCOL)
     uncompressed_size = len(uncompressed_data)
     
-    # Apply Zstd Level 6 compression
-    print("Applying Zstd Level 6 compression (without order mapping)...")
-    compressor = zstd.ZstdCompressor(level=6)
+    # Apply Zstd Level 22 compression
+    print("Applying Zstd Level 22 compression (without order mapping)...")
+    compressor = zstd.ZstdCompressor(level=22)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Save compressed data
@@ -139,7 +139,7 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
         'processing_time_seconds': processing_time,
         'optimizations_stack': {
             'phase1_baseline': True,
-            'phase2_zstd_level6': True,
+            'phase2_zstd_level22': True,
             'phase3_template_extraction': True,
             'phase4_advanced_variable_encoding': True,
             'phase5_smart_row_ordering': True,

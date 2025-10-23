@@ -47,9 +47,10 @@ config:
       backgroundColor: "transparent"
 ---
 xychart-beta
-  x-axis ["Plain Text", "Zstd", "Template Extract", "Variable Encode", "Smart Order", "Drop Order"]
-  y-axis "Compression Ratio" 0 --> 60
-  bar [1, 29.1, 36.2, 39.9, 42.2, 50.9]
+  title "Logs: Structured Text Compression (Apache dataset)"
+  x-axis ["Plain Text", "Zstd L22", "Template", "Var Encode", "Smart Order", "Drop Order"]
+  y-axis "Compression Ratio" 0 --> 55
+  bar [1, 29.0, 36.4, 43.3, 44.4, 50.8]
 ```
 
 ## 🎯 Project Overview
@@ -142,7 +143,7 @@ python main.py --size huge
 ### [📝 Logs: Structured Text Compression](./logs/docs/README.md)
 **Challenge**: Semi-structured text, repetitive patterns, variable field schemas  
 **Techniques**: Template extraction, variable classification, columnar encoding, smart ordering  
-**Results**: **33x compression** (70MB → 2MB) with enhanced algorithms
+**Results**: **50.8x compression** (Apache: 5MB → 0.1MB) with maximum zstd compression
 
 **Implemented Innovations:**
 - **Template extraction**: YScope CLP-inspired pattern detection for log message templates

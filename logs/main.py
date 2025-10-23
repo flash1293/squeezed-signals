@@ -96,7 +96,7 @@ def run_phase_1(size: str) -> bool:
 
 def run_phase_2(size: str) -> bool:
     """Run Phase 2: Zstd compression"""
-    print("\n🔄 Phase 2: Zstd Compression (Level 6)")
+    print("\n🔄 Phase 2: Zstd Compression (Level 22)")
     print("-" * 50)
     
     try:
@@ -114,8 +114,8 @@ def run_phase_2(size: str) -> bool:
             print(f"❌ Input file not found: {input_file}")
             return False
         
-        # Run processing with level 6
-        metadata = phase2_module.process_log_file(input_file, output_file, metadata_file, compression_level=6)
+        # Run processing with level 22
+        metadata = phase2_module.process_log_file(input_file, output_file, metadata_file, compression_level=22)
         
         print(f"✅ Phase 2 completed successfully")
         print(f"   Compression ratio: {metadata['compression_ratio']:.2f}x")
@@ -319,7 +319,7 @@ def print_comprehensive_results(sizes: List[str]):
     print("  • Apache: Web server error logs (structured)")
     print("  • HDFS: Distributed file system logs (variable structure)")  
     print("  • OpenSSH: SSH authentication logs (security events)")
-    print("  • Zstd Level 6: Fast compression baseline")
+    print("  • Zstd Level 22: Maximum compression baseline")
     print("  • Foundation ready for CLP-inspired template extraction!")
 
 

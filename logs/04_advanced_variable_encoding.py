@@ -796,9 +796,9 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path) -
     uncompressed_data = pickle.dumps(phase4_data, protocol=pickle.HIGHEST_PROTOCOL)
     uncompressed_size = len(uncompressed_data)
     
-    # Apply Zstd Level 6 compression
-    print("Applying Zstd Level 6 compression...")
-    compressor = zstd.ZstdCompressor(level=6)
+    # Apply Zstd Level 22 compression
+    print("Applying Zstd Level 22 compression...")
+    compressor = zstd.ZstdCompressor(level=22)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Save compressed data
@@ -815,7 +815,7 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path) -
     
     # Create metadata
     metadata = {
-        'phase': 'Phase 4 - Advanced Variable Encoding + Zstd Level 6',
+        'phase': 'Phase 4 - Advanced Variable Encoding + Zstd Level 22',
         'storage_format': 'advanced_encoded_columns_zstd22',
         'file_size_bytes': file_size,
         'original_size_bytes': original_size,
@@ -847,7 +847,7 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path) -
     print(f"  Template reuse: {phase4_data['total_lines'] / phase4_data['unique_templates']:.2f}x")
     print(f"  Original size: {original_size:,} bytes")
     print(f"  Advanced encoding size: {uncompressed_size:,} bytes")
-    print(f"  After Zstd Level 6: {file_size:,} bytes")
+    print(f"  After Zstd Level 22: {file_size:,} bytes")
     print(f"  Structure compression: {structure_compression_ratio:.2f}x")
     print(f"  Zstd compression: {zstd_compression_ratio:.2f}x")
     print(f"  Overall compression ratio: {overall_compression_ratio:.2f}x")
@@ -984,7 +984,7 @@ def main():
         print(f"  Template reuse: {metadata['template_reuse_ratio']:.2f}x per template")
         print(f"  Original size: {metadata['original_size_bytes']:,} bytes ({metadata['original_size_bytes']/1024:.1f} KB)")
         print(f"  Advanced encoding size: {metadata['uncompressed_size_bytes']:,} bytes ({metadata['uncompressed_size_bytes']/1024:.1f} KB)")
-        print(f"  After Zstd Level 6: {metadata['file_size_bytes']:,} bytes ({metadata['file_size_bytes']/1024:.1f} KB)")
+        print(f"  After Zstd Level 22: {metadata['file_size_bytes']:,} bytes ({metadata['file_size_bytes']/1024:.1f} KB)")
         print(f"  Structure compression: {metadata['structure_compression_ratio']:.2f}x")
         print(f"  Zstd compression: {metadata['zstd_compression_ratio']:.2f}x")
         print(f"  Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
