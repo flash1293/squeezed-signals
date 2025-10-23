@@ -10,7 +10,6 @@ This repository demonstrates the progressive optimization of observability data 
 config:
   xyChart:
     height: 300
-    showDataLabel: true
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
