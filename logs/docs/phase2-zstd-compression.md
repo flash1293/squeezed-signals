@@ -60,12 +60,3 @@ Zstd Level 6 (balanced speed vs. compression):
 ```bash
 python 02_zstd_compression.py --size small
 ```
-
-## Output
-
-```
-output/phase2_logs_small.zst              # Compressed (19.1 KB)
-output/phase2_logs_metadata_small.json    # Statistics
-```
-
-29.1x is impressive for a generic algorithm, but understanding log structure can do better.

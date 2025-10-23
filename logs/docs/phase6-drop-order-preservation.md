@@ -90,12 +90,3 @@ At 100 PB scale: $112,800/year savings.
 ```bash
 python 06_drop_order_preservation.py --size small
 ```
-
-## Output
-
-```
-output/phase6_logs_small.pkl             # Data without order (10.9 KB)
-output/phase6_logs_metadata_small.json   # Statistics
-```
-
-Maximum compression achieved: 50.9x from baseline, 98% space saved.

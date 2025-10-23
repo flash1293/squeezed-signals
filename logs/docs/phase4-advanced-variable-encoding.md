@@ -96,12 +96,3 @@ Same as Phase 3, but `variable_columns` becomes `encoded_variable_columns`:
 ```bash
 python 04_advanced_variable_encoding.py --size small
 ```
-
-## Output
-
-```
-output/phase4_logs_small.pkl             # Encoded data (13.9 KB)
-output/phase4_logs_metadata_small.json   # Statistics
-```
-
-10% improvement may seem small, but compounds with previous gains for 40x total compression.

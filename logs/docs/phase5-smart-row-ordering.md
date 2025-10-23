@@ -95,12 +95,3 @@ Encoding:
 ```bash
 python 05_smart_row_ordering.py --size small
 ```
-
-## Output
-
-```
-output/phase5_logs_small.pkl             # Reordered data (13.1 KB)
-output/phase5_logs_metadata_small.json   # Statistics
-```
-
-Marginal 6% gain, but valuable at scale where 6% = terabytes saved.

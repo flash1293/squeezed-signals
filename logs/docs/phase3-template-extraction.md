@@ -99,12 +99,3 @@ IPs column (locality):
 ```bash
 python 03_template_extraction.py --size small
 ```
-
-## Output
-
-```
-output/phase3_logs_small.pkl             # Template data (15.3 KB)
-output/phase3_logs_metadata_small.json   # Statistics
-```
-
-This is the breakthrough technique - understanding log structure enables much better compression than generic algorithms.
