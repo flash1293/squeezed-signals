@@ -14,6 +14,7 @@ config:
     xyChart:
       backgroundColor: "transparent"
 ---
+%%{init: {"mermaid": {"panControls": false}} }%%
 xychart-beta
   x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Binary Table", "Columnar", "Enhanced", "Downsampled"]
   y-axis "Compression Ratio" 0 --> 90
@@ -30,6 +31,7 @@ config:
     xyChart:
       backgroundColor: "transparent"
 ---
+%%{init: {"mermaid": {"panControls": false}} }%%
 xychart-beta
   x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Relationships", "Columnar"]
   y-axis "Compression Ratio" 0 --> 30
@@ -46,6 +48,7 @@ config:
     xyChart:
       backgroundColor: "transparent"
 ---
+%%{init: {"mermaid": {"panControls": false}} }%%
 xychart-beta
   x-axis ["Plain Text", "Zstd", "Template Extract", "Variable Encode", "Smart Order", "Drop Order"]
   y-axis "Compression Ratio" 0 --> 60
