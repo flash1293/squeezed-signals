@@ -4,6 +4,7 @@ A comprehensive demonstration of how time-series metrics storage formats evolve 
 
 ## Documentation
 
+- [Phase 0: Data generation](./data-generation-deep-dive.md)
 - [Phase 1: NDJSON Characteristics](./phase1-ndjson-characteristics.md) - Baseline format analysis
 - [Phase 2: CBOR Characteristics](./phase2-cbor-characteristics.md) - Binary serialization benefits
 - [Phase 3: CBOR + zstd Characteristics](./phase3-cbor-zstd-characteristics.md) - General-purpose compression
