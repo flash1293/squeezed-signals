@@ -8,10 +8,12 @@ This repository demonstrates the progressive optimization of observability data 
 ```mermaid
 ---
 config:
+  xyChart:
+    height: 300
+    showDataLabel: true
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
-      height: 300
 ---
 xychart-beta
   title "Metrics: Time-Series Compression Journey"
@@ -24,10 +26,12 @@ xychart-beta
 ```mermaid
 ---
 config:
+  xyChart:
+    height: 300
+    showDataLabel: true
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
-      height: 300
 ---
 xychart-beta
   title "Traces: Distributed Execution Optimization"
@@ -40,10 +44,12 @@ xychart-beta
 ```mermaid
 ---
 config:
+  xyChart:
+    height: 300
+    showDataLabel: true
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
-      height: 300
 ---
 xychart-beta
   title "Logs: Structured Text Compression"
