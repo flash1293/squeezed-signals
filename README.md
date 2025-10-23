@@ -2,6 +2,24 @@
 
 This repository demonstrates the progressive optimization of observability data storage across **metrics**, **traces**, and **logs**.
 
+## 📈 Compression Ratio Evolution
+
+```mermaid
+---
+config:
+  themeVariables:
+    xyChart:
+      backgroundColor: "transparent"
+---
+xychart-beta
+  title "Compression Ratios Across All Phases"
+  x-axis ["Phase 0", "Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 6"]
+  y-axis "Compression Ratio" 0 --> 80
+  line "Metrics" [1, 1, 1.3, 21.1, 29.4, 40.2, 79.7]
+  line "Traces" [1, 1, 1.8, 11.9, 21.0, 25.0, 0]
+  line "Logs" [1, 1, 29.1, 36.2, 39.9, 42.2, 50.9]
+```
+
 ## 🎯 Project Overview
 
 Modern observability systems generate massive amounts of data across three primary signal types:
