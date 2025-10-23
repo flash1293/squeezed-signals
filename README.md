@@ -28,7 +28,6 @@ xychart-beta
 config:
   xyChart:
     height: 300
-    showDataLabel: true
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
@@ -46,7 +45,6 @@ xychart-beta
 config:
   xyChart:
     height: 300
-    showDataLabel: true
   themeVariables:
     xyChart:
       backgroundColor: "transparent"
