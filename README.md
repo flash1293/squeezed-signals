@@ -6,6 +6,7 @@ This repository demonstrates the progressive optimization of observability data 
 
 ### Metrics Compression
 ```mermaid
+%%{init: {"mermaid": {"panControls": false}} }%%
 ---
 config:
   xyChart:
@@ -14,7 +15,6 @@ config:
     xyChart:
       backgroundColor: "transparent"
 ---
-%%{init: {"mermaid": {"panControls": false}} }%%
 xychart-beta
   x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Binary Table", "Columnar", "Enhanced", "Downsampled"]
   y-axis "Compression Ratio" 0 --> 90
@@ -23,6 +23,7 @@ xychart-beta
 
 ### Traces Compression
 ```mermaid
+%%{init: {"mermaid": {"panControls": false}} }%%
 ---
 config:
   xyChart:
@@ -31,7 +32,6 @@ config:
     xyChart:
       backgroundColor: "transparent"
 ---
-%%{init: {"mermaid": {"panControls": false}} }%%
 xychart-beta
   x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Relationships", "Columnar"]
   y-axis "Compression Ratio" 0 --> 30
@@ -40,6 +40,7 @@ xychart-beta
 
 ### Logs Compression
 ```mermaid
+%%{init: {"mermaid": {"panControls": false}} }%%
 ---
 config:
   xyChart:
