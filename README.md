@@ -15,7 +15,6 @@ config:
       backgroundColor: "transparent"
 ---
 xychart-beta
-  title "Metrics: Time-Series Compression Journey"
   x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Binary Table", "Columnar", "Enhanced", "Downsampled"]
   y-axis "Compression Ratio" 0 --> 90
   bar [1, 1.3, 21.1, 29.4, 40.2, 79.7, 90.4]
@@ -32,7 +31,6 @@ config:
       backgroundColor: "transparent"
 ---
 xychart-beta
-  title "Traces: Distributed Execution Optimization"
   x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Relationships", "Columnar"]
   y-axis "Compression Ratio" 0 --> 30
   bar [1, 1.8, 11.9, 21.0, 25.0]
@@ -49,7 +47,6 @@ config:
       backgroundColor: "transparent"
 ---
 xychart-beta
-  title "Logs: Structured Text Compression"
   x-axis ["Plain Text", "Zstd", "Template Extract", "Variable Encode", "Smart Order", "Drop Order"]
   y-axis "Compression Ratio" 0 --> 60
   bar [1, 29.1, 36.2, 39.9, 42.2, 50.9]
