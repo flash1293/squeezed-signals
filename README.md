@@ -12,7 +12,66 @@ Modern observability systems generate massive amounts of data across three prima
 
 Each signal type presents unique storage optimization opportunities and challenges. This project demonstrates how to achieve dramatic compression ratios while maintaining data fidelity and query performance.
 
-## 🚀 Getting Started
+## � Compression Results at a Glance
+
+### Metrics: 79.7x Compression (80.8 MB → 1.0 MB)
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#f0f0f0'}}}%%
+graph LR
+    A["Phase 1<br/>NDJSON<br/>80.8 MB<br/>(1.0x)"] --> B["Phase 2<br/>CBOR<br/>63.9 MB<br/>(1.3x)"]
+    B --> C["Phase 3<br/>CBOR+Zstd<br/>3.8 MB<br/>(21.1x)"]
+    C --> D["Phase 4<br/>Binary Table<br/>2.7 MB<br/>(29.4x)"]
+    D --> E["Phase 5<br/>Columnar<br/>2.0 MB<br/>(40.2x)"]
+    E --> F["Phase 6<br/>Enhanced<br/>1.0 MB<br/>(79.7x)"]
+    F --> G["Phase 7<br/>Downsampled<br/>0.9 MB<br/>(90.4x)"]
+    
+    style A fill:#ff6b6b
+    style B fill:#ffa06b
+    style C fill:#ffd56b
+    style D fill:#d4ff6b
+    style E fill:#9fff6b
+    style F fill:#6bffb4
+    style G fill:#6be0ff
+```
+
+### Traces: 25.0x Compression (134.3 KB → 5.4 KB)
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#f0f0f0'}}}%%
+graph LR
+    A["Phase 1<br/>NDJSON<br/>134.3 KB<br/>(1.0x)"] --> B["Phase 2<br/>CBOR<br/>74.8 KB<br/>(1.8x)"]
+    B --> C["Phase 3<br/>CBOR+Zstd<br/>11.3 KB<br/>(11.9x)"]
+    C --> D["Phase 4<br/>Relationships<br/>6.4 KB<br/>(21.0x)"]
+    D --> E["Phase 5<br/>Columnar<br/>5.4 KB<br/>(25.0x)"]
+    
+    style A fill:#ff6b6b
+    style B fill:#ffa06b
+    style C fill:#ffd56b
+    style D fill:#9fff6b
+    style E fill:#6bffb4
+```
+
+### Logs: 50.9x Compression (554.6 KB → 10.9 KB)
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#f0f0f0'}}}%%
+graph LR
+    A["Phase 1<br/>Plain Text<br/>554.6 KB<br/>(1.0x)"] --> B["Phase 2<br/>Zstd<br/>19.1 KB<br/>(29.1x)"]
+    B --> C["Phase 3<br/>Templates<br/>15.3 KB<br/>(36.2x)"]
+    C --> D["Phase 4<br/>Var Encoding<br/>13.9 KB<br/>(39.9x)"]
+    D --> E["Phase 5<br/>Smart Order<br/>13.1 KB<br/>(42.2x)"]
+    E --> F["Phase 6<br/>Drop Order<br/>10.9 KB<br/>(50.9x)"]
+    
+    style A fill:#ff6b6b
+    style B fill:#ffa06b
+    style C fill:#ffd56b
+    style D fill:#d4ff6b
+    style E fill:#9fff6b
+    style F fill:#6bffb4
+```
+
+## �🚀 Getting Started
 
 Each signal type is a complete, self-contained demonstration that can be run independently:
 
