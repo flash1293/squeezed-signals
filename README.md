@@ -1,8 +1,10 @@
 # Squeezed Signals: The Evolution of Observability Data Storage
 
+⚠️ Still in progress, don't trust anything this project says yet ⚠️
+
 This repository demonstrates the progressive optimization of observability data storage across **metrics**, **traces**, and **logs**.
 
-## 📈 Compression Ratio Evolution
+## Compression Ratio Evolution
 
 ### Metrics Compression
 ```mermaid
@@ -53,7 +55,7 @@ xychart-beta
   bar [1, 29.0, 36.4, 43.3, 44.4, 50.8]
 ```
 
-## 🎯 Project Overview
+## Project Overview
 
 Modern observability systems generate massive amounts of data across three primary signal types:
 
@@ -114,7 +116,7 @@ python main.py --size big
 python main.py --size huge
 ```
 
-## 📊 Signal-Specific Optimization Strategies
+## Signal-Specific Optimization Strategies
 
 ### [📈 Metrics: Time-Series Compression](./metrics/docs/README.md)
 **Challenge**: Repetitive timestamps, correlated values, metadata redundancy  
