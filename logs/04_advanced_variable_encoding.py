@@ -610,30 +610,64 @@ class AdvancedVariableEncoder:
     
     def _encode_iso_timestamps(self, timestamps: List[str]) -> Dict[str, Any]:
         """
-        Encode ISO timestamps with delta encoding
+        Encode ISO timestamps or custom timestamp formats with delta encoding
         Strategy: Parse to unix timestamp, delta encode
+        Supports:
+        - ISO format: 2023-10-25T12:00:00
+        - HDFS format: 081109 203615 148 (YYMMDD HHMMSS milliseconds)
         """
         if not timestamps:
             return {'type': 'empty', 'data': b'', 'count': 0}
         
-        # Similar to bracket timestamps but for ISO format
         parsed_times = []
         base_time = None
+        failed_parses = 0
         
         for ts_str in timestamps:
             try:
+                # Try ISO format first
                 dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
                 timestamp = int(dt.timestamp())
-                
-                if base_time is None:
-                    base_time = timestamp
-                
-                parsed_times.append(timestamp)
             except:
-                parsed_times.append(base_time or 0)
+                try:
+                    # Try HDFS custom format: 081109 203615 148 (YYMMDD HHMMSS milliseconds)
+                    parts = ts_str.strip().split()
+                    if len(parts) >= 2:
+                        date_part = parts[0]  # 081109 = YYMMDD
+                        time_part = parts[1]  # 203615 = HHMMSS
+                        
+                        # Parse date: YYMMDD
+                        year = 2000 + int(date_part[0:2])  # Assume 20xx for YY
+                        month = int(date_part[2:4])
+                        day = int(date_part[4:6])
+                        
+                        # Parse time: HHMMSS
+                        hour = int(time_part[0:2])
+                        minute = int(time_part[2:4])
+                        second = int(time_part[4:6])
+                        
+                        dt = datetime(year, month, day, hour, minute, second)
+                        timestamp = int(dt.timestamp())
+                    else:
+                        # Failed to parse
+                        timestamp = base_time or 0
+                        failed_parses += 1
+                except:
+                    # Complete fallback
+                    timestamp = base_time or 0
+                    failed_parses += 1
+            
+            if base_time is None and timestamp > 0:
+                base_time = timestamp
+            
+            parsed_times.append(timestamp)
         
         if not parsed_times or base_time is None:
+            print(f"  Warning: Failed to parse all timestamps, keeping as raw strings")
             return {'type': 'raw', 'data': json.dumps(timestamps).encode(), 'count': len(timestamps)}
+        
+        if failed_parses > 0:
+            print(f"  Warning: Failed to parse {failed_parses}/{len(timestamps)} timestamps, using base time as fallback")
         
         # Delta encode
         deltas = [t - base_time for t in parsed_times]
