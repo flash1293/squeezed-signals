@@ -201,7 +201,7 @@
                         </tr>
                         <tr>
                             <td>📝 Logs</td>
-                            <td>5.0 MB Plain Text</td>
+                            <td>72.7 MB Plain Text</td>
                             <td>Repeated structure with variables</td>
                         </tr>
                         <tr>
@@ -257,33 +257,78 @@
                 </div>
             </section>
 
+            <!-- Phase 1: NDJSON Baseline -->
             <section>
-                <h2>Phase 1→3: Foundation (21x)</h2>
-                <div class="two-column">
-                    <div>
-                        <h4>NDJSON → CBOR (1.3x)</h4>
-                        <pre><code class="language-json">// JSON: 80.8 MB
-{"timestamp": 1698000000}
-
-// CBOR: 63.9 MB (binary)
-A1 69 74696D657374616D70 1A 6536...</code></pre>
-                        <p class="small-text">Binary encoding is more compact</p>
-                    </div>
-                    <div>
-                        <h4>CBOR → CBOR+zstd (21x)</h4>
-                        <p class="small-text">Add general-purpose compression</p>
-                        <ul class="small-text">
-                            <li>Dictionary compression</li>
-                            <li>Repeated pattern detection</li>
-                            <li>Huffman coding</li>
-                        </ul>
-                        <p class="small-text highlight">Biggest single jump: 16x improvement!</p>
-                    </div>
+                <h2>Phase 1: NDJSON Baseline (80.8 MB, 1.0x)</h2>
+                <div class="box">
+                    <h4>Newline-Delimited JSON</h4>
                 </div>
+                <pre><code class="language-json">{"metric_name":"system.cpu.user","labels":{"host":"server-01","datacenter":"us-west-1"},"timestamp":1698000000,"value":72.34567}
+{"metric_name":"system.cpu.user","labels":{"host":"server-01","datacenter":"us-west-1"},"timestamp":1698000060,"value":72.34589}
+{"metric_name":"system.cpu.user","labels":{"host":"server-01","datacenter":"us-west-1"},"timestamp":1698000120,"value":72.34612}
+</code></pre>
+                <p class="small-text"><strong>Observations:</strong></p>
+                <ul class="small-text">
+                    <li>Text-based, human-readable format</li>
+                    <li>Repeated keys: "metric_name", "labels", "timestamp", "value"</li>
+                    <li>Same metric name and labels repeated thousands of times</li>
+                    <li>Timestamps are sequential (60 second intervals)</li>
+                    <li>Values change slowly (temporal locality)</li>
+                </ul>
             </section>
 
+            <!-- Phase 2: CBOR Binary -->
             <section>
-                <h2>Phase 4: Binary Table (29x)</h2>
+                <h2>Phase 2: CBOR Binary Encoding (63.9 MB, 1.26x, Δ1.26x)</h2>
+                <div class="box">
+                    <h4>Switch to binary format</h4>
+                </div>
+                <pre><code class="language-plaintext"># JSON (text):
+{"timestamp": 1698000000}
+# 25 bytes
+
+# CBOR (binary):
+A1                        # map(1 item)
+  69 74696D657374616D70   # "timestamp" (9 bytes)
+  1A 6536CD80             # unsigned(1698000000) (5 bytes)
+# 15 bytes (40% smaller!)
+
+# Benefits:
+# - Integers stored as binary, not strings
+# - Type information embedded efficiently
+# - No whitespace or quotes needed
+# - Still preserves all structure</code></pre>
+                <p class="small-text highlight">✅ 1.26x compression through binary encoding</p>
+            </section>
+
+            <!-- Phase 3: CBOR + zstd -->
+            <section>
+                <h2>Phase 3: CBOR + zstd Compression (3.8 MB, 21.3x, Δ16.8x)</h2>
+                <div class="box">
+                    <h4>Add general-purpose compression</h4>
+                </div>
+                <pre><code class="language-plaintext"># zstd dictionary learning discovers patterns:
+
+Pattern 1: "system.cpu.user" (appears 10k times)
+  → Dictionary entry #1 (2 bytes to reference)
+
+Pattern 2: "server-01" (appears 10k times)
+  → Dictionary entry #2
+
+Pattern 3: Sequential timestamps
+  → Run-length encoding finds patterns
+
+Pattern 4: Label structure repetition
+  → Reference previous occurrences
+
+# Result: 63.9 MB → 3.8 MB (16.8x additional compression!)
+# Combined: 80.8 MB → 3.8 MB (21.3x total)</code></pre>
+                <p class="small-text highlight">✅ Biggest single jump: 16.8x improvement from zstd!</p>
+            </section>
+
+            <!-- Phase 4: Binary Table -->
+            <section>
+                <h2>Phase 4: Binary Table with String Deduplication (2.8 MB, 28.9x, Δ1.36x)</h2>
                 <div class="box">
                     <h4>Key Insight: String Deduplication</h4>
                 </div>
@@ -298,10 +343,12 @@ rows: [{name_id: 0, label_ids: [1, 2]}, {name_id: 0, label_ids: [1, 2]}]
 # 17 bytes + (1000 × 3 bytes) = 3,017 bytes
 
 # Savings: 5.6x just from deduplication!</code></pre>
+                <p class="small-text highlight">✅ 28.9x total - deduplication enables better zstd compression</p>
             </section>
 
+            <!-- Phase 5: Columnar Storage -->
             <section>
-                <h2>Phase 5: Columnar Storage (40x)</h2>
+                <h2>Phase 5: Columnar Storage (2.0 MB, 40.4x, Δ1.40x)</h2>
                 <div class="box">
                     <h4>Key Insight: Group Similar Data</h4>
                 </div>
@@ -320,10 +367,18 @@ values:     [72.3, 72.4, 72.5]</code></pre>
                         <p class="small-text">Similar values together = better compression</p>
                     </div>
                 </div>
+                <p class="small-text" style="margin-top: 20px;"><strong>Why it works:</strong></p>
+                <ul class="small-text">
+                    <li>All timestamps together → delta encoding applies better</li>
+                    <li>All values together → XOR/floating-point compression more effective</li>
+                    <li>All string IDs together → run-length encoding finds patterns</li>
+                </ul>
+                <p class="small-text highlight">✅ 40.4x compression - columnar layout unlocks specialized algorithms</p>
             </section>
 
+            <!-- Phase 6: Pattern-Aware Algorithms -->
             <section>
-                <h2>Phase 6: Pattern-Aware Algorithms (80x)</h2>
+                <h2>Phase 6: Pattern-Aware Algorithms (1.0 MB, 79.7x, Δ1.97x)</h2>
                 <div class="box danger">
                     <h4>The Breakthrough: Understand the Data!</h4>
                 </div>
@@ -337,31 +392,35 @@ values:     [72.3, 72.4, 72.5]</code></pre>
                     <li><strong>Sparse data:</strong> Store only non-zero indices + values</li>
                 </ul>
                 <p class="highlight" style="margin-top: 20px; text-align: center;">
-                    Result: 3.19 bytes per data point (vs 8 bytes original)
+                    Result: 3.19 bytes per data point (vs 8 bytes original) - 79.7x compression!
                 </p>
             </section>
 
             <section>
-                <h2>Deep Dive: XOR Compression</h2>
+                <h2>Deep Dive: Near-Constant Encoding</h2>
                 <div class="box">
-                    <h4>Facebook Gorilla Algorithm</h4>
-                    <p class="small-text">Exploit floating-point similarity</p>
+                    <h4>Exploit Values That Rarely Change</h4>
+                    <p class="small-text">Many metrics are nearly constant with tiny deviations</p>
                 </div>
-                <pre><code class="language-python"># Two similar floats:
-prev = 72.34567  # Binary: 0x4052162E147AE148
-curr = 72.34589  # Binary: 0x4052162E851EB852
+                <pre><code class="language-python"># CPU usage values (varies slightly around 72%):
+values = [72.34567, 72.34589, 72.34612, 72.34599, 72.34601, ...]
+# Raw: 1000 values × 8 bytes = 8,000 bytes
 
-# XOR reveals differences:
-xor = prev ^ curr  # 0x00000000C24493A
-                   # Only 35 bits differ!
+# Near-constant encoding:
+base_value = 72.34567
+deltas = [0.00000, 0.00022, 0.00045, 0.00032, 0.00034, ...]
 
-# Store only the different bits:
-# - Control bit: 1 (different value)
-# - Leading zeros: 28
-# - Significant bits: 35
-# Total: 1 + 6 + 6 + 35 = 48 bits vs 64 bits original
+# Deltas are tiny! Scale and store as small integers:
+scaled_deltas = [0, 22, 45, 32, 34, ...]  # × 0.00001
+# Most deltas fit in 1-2 bytes instead of 8!
 
-# For slowly-changing values: 25-40% compression</code></pre>
+# Result:
+# - Base value: 8 bytes
+# - 1000 deltas × ~1.5 bytes = 1,500 bytes
+# - Total: 1,508 bytes vs 8,000 bytes original
+# - Compression: 5.3x!
+
+# Even better with zstd: deltas have patterns too!</code></pre>
             </section>
 
             <section>
@@ -440,94 +499,95 @@ delta_deltas = [0, 0, 0]  # All zeros!
                     <p class="small-text">From plain text through advanced log-specific techniques</p>
                 </div>
                 <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>Dataset:</strong> Apache web server logs (56,482 lines)</p>
-                    <p class="small-text"><strong>Starting point:</strong> 5.0 MB plain text</p>
+                    <p class="small-text"><strong>Dataset:</strong> OpenSSH server logs (655,147 lines)</p>
+                    <p class="small-text"><strong>Starting point:</strong> 72.7 MB plain text</p>
                     <p class="small-text">Each phase will demonstrate new optimizations</p>
                 </div>
             </section>
 
             <!-- Phase 1: Plain Text -->
             <section>
-                <h2>Phase 1: Plain Text Baseline (5.0 MB, 1.0x)</h2>
+                <h2>Phase 1: Plain Text Baseline (72.7 MB, 1.0x)</h2>
                 <div class="box">
-                    <h4>Raw Apache log files</h4>
+                    <h4>Raw OpenSSH log files</h4>
                 </div>
-                <pre><code class="language-log">[Thu Jun 09 06:07:04 2005] [notice] LDAP: Built with OpenLDAP LDAP SDK
-[Thu Jun 09 06:07:05 2005] [notice] LDAP: SSL support unavailable
-[Thu Jun 09 06:07:05 2005] [error] env.createBean2(): Factory error creating vm
-[Thu Jun 09 06:07:19 2005] [notice] jk2_init() Found child 2330 in slot 0
-[Thu Jun 09 06:07:19 2005] [notice] jk2_init() Found child 2337 in slot 7
-[Thu Jun 09 06:07:20 2005] [error] [client 10.0.0.153] File does not exist: /var/www
-[Thu Jun 09 06:07:21 2005] [error] [client 10.0.0.153] File does not exist: /var/www
-[Thu Jun 09 06:07:22 2005] [error] [client 10.0.0.154] File does not exist: /var/www
+                <pre><code class="language-log">Dec 10 06:55:46 LabSZ sshd[24200]: reverse mapping checking getaddrinfo for ns.marryaldkfaczcz.com [173.234.31.186] failed - POSSIBLE BREAK-IN ATTEMPT!
+Dec 10 06:55:46 LabSZ sshd[24200]: Invalid user webmaster from 173.234.31.186
+Dec 10 06:55:46 LabSZ sshd[24200]: input_userauth_request: invalid user webmaster [preauth]
+Dec 10 06:55:46 LabSZ sshd[24200]: pam_unix(sshd:auth): check pass; user unknown
+Dec 10 06:55:46 LabSZ sshd[24200]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=173.234.31.186
+Dec 10 06:55:48 LabSZ sshd[24200]: Failed password for invalid user webmaster from 173.234.31.186 port 38926 ssh2
+Dec 10 06:55:48 LabSZ sshd[24200]: Connection closed by 173.234.31.186 [preauth]
+Dec 10 07:02:47 LabSZ sshd[24203]: Connection closed by 212.47.254.145 [preauth]
 </code></pre>
                 <p class="small-text"><strong>Observations:</strong></p>
                 <ul class="small-text">
-                    <li>56,482 lines, each ~90 bytes average</li>
-                    <li>Repeated structure: "[time] [level] message"</li>
+                    <li>655,147 lines, each ~110 bytes average</li>
+                    <li>Repeated structure: "timestamp hostname daemon[pid]: message"</li>
                     <li>Same message patterns with different variables</li>
-                    <li>"File does not exist" appears 20,861 times!</li>
+                    <li>"Failed password for root" appears 139,818 times!</li>
                 </ul>
             </section>
 
             <!-- Phase 2: zstd -->
             <section>
-                <h2>Phase 2: Plain Text + zstd (175 KB, 29.3x)</h2>
+                <h2>Phase 2: Plain Text + zstd (3.0 MB, 24.5x, Δ24.5x)</h2>
                 <div class="box">
                     <h4>General compression finds patterns automatically</h4>
                 </div>
                 <pre><code class="language-plaintext"># zstd dictionary learning discovers repeated patterns:
 
-Pattern 1: "[Thu Jun 09 06:07:" (appears 56k times)
+Pattern 1: "Dec 10 " (appears 655k times)
   → Store once in dictionary, reference with 2 bytes
 
-Pattern 2: "] [error] [client " (appears 31k times)
+Pattern 2: " LabSZ sshd[" (appears 655k times)
   → Dictionary entry
 
-Pattern 3: "File does not exist:" (appears 21k times)
+Pattern 3: "Failed password for root from " (appears 140k times)
   → Dictionary entry
 
-Pattern 4: "/var/www/html" (appears 15k times)
+Pattern 4: "authentication failure" (appears 153k times)
   → Dictionary entry
 
 # Compression result:
-Original: 5,135,877 bytes
-Compressed: 175,367 bytes
-Ratio: 29.3x</code></pre>
-                <p class="small-text highlight">✅ 29x with zero domain knowledge - impressive!</p>
+Original: 72,746,715 bytes
+Compressed: 2,968,978 bytes
+Ratio: 24.5x</code></pre>
+                <p class="small-text highlight">✅ 24.5x with zero domain knowledge - impressive!</p>
             </section>
 
             <!-- Phase 3: Template Extraction -->
             <section>
-                <h2>Phase 3: Template Extraction (180 KB, 36.4x)</h2>
+                <h2>Phase 3: Template Extraction (2.0 MB, 36.3x, Δ1.48x)</h2>
                 <div class="box danger">
                     <h4>The CLP Breakthrough: Separate Structure from Data!</h4>
                 </div>
                 <pre><code class="language-python"># Original log lines (3 examples):
-[Thu Jun 09 06:07:20 2005] [error] [client 10.0.0.153] File does not exist: /var/www/html
-[Thu Jun 09 06:07:21 2005] [error] [client 10.0.0.153] File does not exist: /var/www/css
-[Thu Jun 09 06:07:22 2005] [error] [client 10.0.0.154] File does not exist: /var/www/js
+Dec 10 06:55:48 LabSZ sshd[24200]: Failed password for root from 173.234.31.186 port 38926 ssh2
+Dec 10 07:14:32 LabSZ sshd[24205]: Failed password for root from 218.65.30.43 port 54913 ssh2
+Dec 10 08:03:17 LabSZ sshd[24220]: Failed password for root from 61.174.51.214 port 58389 ssh2
 
 # CLP separates into template + variables:
-Template #20: "<BRACKET_TIME> [error] [client <IP>] File does not exist: <PATH>"
+Template #16: "<TIMESTAMP> LabSZ sshd[<NUM>]: Failed password for root from <IP> port <NUM> ssh2"
 
 Variables (columnar storage):
-  BRACKET_TIME: ["Thu Jun 09 06:07:20 2005", "Thu Jun 09 06:07:21 2005", ...]
-  IP: ["10.0.0.153", "10.0.0.153", "10.0.0.154", ...]
-  PATH: ["/var/www/html", "/var/www/css", "/var/www/js", ...]
+  TIMESTAMP: ["Dec 10 06:55:48", "Dec 10 07:14:32", ...]
+  NUM (pid): [24200, 24205, 24220, ...]
+  IP: ["173.234.31.186", "218.65.30.43", "61.174.51.214", ...]
+  NUM (port): [38926, 54913, 58389, ...]
 
-Line-to-template mapping: [20, 20, 20, 20, 20, ...]  # Just template IDs!
+Line-to-template mapping: [16, 16, 16, 16, 16, ...]  # Just template IDs!
 
-# This template used 20,861 times!
-Template storage: 63 bytes × 1 = 63 bytes
-Variables: 20,861 × (time + IP + path) ≈ smaller with type-aware compression
+# This template used 139,818 times!
+Template storage: 81 bytes × 1 = 81 bytes
+Variables: 139,818 × (time + pid + IP + port) ≈ much smaller with type-aware compression
 </code></pre>
             </section>
 
             <section>
                 <h2>Phase 3: Template Statistics</h2>
                 <div class="box">
-                    <h4>Only 38 unique templates for 56,482 lines!</h4>
+                    <h4>Only 5,669 unique templates for 655,147 lines!</h4>
                 </div>
                 <table style="font-size: 0.55em;">
                     <thead>
@@ -540,100 +600,98 @@ Variables: 20,861 × (time + IP + path) ≈ smaller with type-aware compression
                     </thead>
                     <tbody>
                         <tr>
-                            <td>[client &lt;IP&gt;] File does not exist: &lt;PATH&gt;</td>
-                            <td class="success">20,861</td>
-                            <td>36.9%</td>
-                            <td class="success">20,861x</td>
+                            <td>Failed password for root from &lt;IP&gt; port &lt;NUM&gt; ssh2</td>
+                            <td class="success">139,818</td>
+                            <td>21.3%</td>
+                            <td class="success">139,818x</td>
                         </tr>
                         <tr>
-                            <td>[client &lt;IP&gt;] Directory index forbidden: &lt;PATH&gt;</td>
-                            <td>6,745</td>
-                            <td>11.9%</td>
-                            <td>6,745x</td>
+                            <td>authentication failure; ... rhost=&lt;IP&gt; user=root</td>
+                            <td>139,572</td>
+                            <td>21.3%</td>
+                            <td>139,572x</td>
                         </tr>
                         <tr>
-                            <td>jk2_init() Found child &lt;NUM&gt; in slot &lt;NUM&gt;</td>
-                            <td>6,335</td>
-                            <td>11.2%</td>
-                            <td>6,335x</td>
+                            <td>Connection closed by &lt;IP&gt; [preauth]</td>
+                            <td>68,958</td>
+                            <td>10.5%</td>
+                            <td>68,958x</td>
                         </tr>
                         <tr>
-                            <td>workerEnv.init() ok &lt;PATH&gt;</td>
-                            <td>5,708</td>
-                            <td>10.1%</td>
-                            <td>5,708x</td>
+                            <td>Received disconnect from &lt;IP&gt;: &lt;NUM&gt;: Bye Bye [preauth]</td>
+                            <td>46,593</td>
+                            <td>7.1%</td>
+                            <td>46,593x</td>
                         </tr>
                         <tr>
-                            <td>script not found or unable to stat</td>
-                            <td>4,478</td>
-                            <td>7.9%</td>
-                            <td>4,478x</td>
+                            <td>PAM service(sshd) ignoring max retries; &lt;NUM&gt; &gt; &lt;NUM&gt;</td>
+                            <td>37,963</td>
+                            <td>5.8%</td>
+                            <td>37,963x</td>
                         </tr>
                         <tr>
-                            <td colspan="4" class="small-text">...and 33 more templates</td>
+                            <td colspan="4" class="small-text">...and 5,664 more templates</td>
                         </tr>
                     </tbody>
                 </table>
                 <div class="formula" style="margin-top: 20px;">
-                    Average template reuse: 56,482 lines ÷ 38 templates = <span class="highlight">1,486x per template!</span>
+                    Average template reuse: 655,147 lines ÷ 5,669 templates = <span class="highlight">116x per template!</span>
                 </div>
             </section>
 
             <!-- Phase 4: Variable Encoding -->
             <section>
-                <h2>Phase 4: Type-Aware Variable Encoding (120 KB, 43.3x)</h2>
+                <h2>Phase 4: Type-Aware Variable Encoding (1.9 MB, 38.7x, Δ1.07x)</h2>
                 <div class="box">
                     <h4>Compress each variable type optimally</h4>
                 </div>
-                <pre><code class="language-python"># BRACKET_TIME variables (52,004 occurrences):
-Raw: ["Thu Jun 09 06:07:04 2005", "Thu Jun 09 06:07:05 2005", ...]
+                <pre><code class="language-python"># TIMESTAMP variables (655,147 occurrences):
+Raw: ["Dec 10 06:55:46", "Dec 10 06:55:46", "Dec 10 06:55:48", ...]
 Delta encoded:
-  Base: "Thu Jun 09 06:07:04 2005"
-  Deltas: [0, 1, 0, 1, 1, 14, 3, 0, 0, ...]  # Seconds difference
-  Compression: 1,352,104 bytes → ~200 KB (6.8x)
+  Base: "Dec 10 06:55:46"
+  Deltas: [0, 0, 2, 1, 58, 0, ...]  # Seconds difference
+  Compression: 12,447,793 bytes → efficient storage (using numpy arrays)
 
-# IP variables (31,116 occurrences):
-Raw: ["10.0.0.153", "10.0.0.153", "10.0.0.154", "10.0.0.155", ...]
-Dictionary + Run-length:
-  Dictionary: {0: "10.0.0.153", 1: "10.0.0.154", 2: "10.0.0.155", ...}
-  Indices: [0, 0, 0, 0, 1, 1, 2, 2, 2, ...]
-  Run-length: [(0, 4), (1, 2), (2, 3), ...]
-  Compression: 407,682 bytes → ~50 KB (8.2x)
+# IP variables (549,454 occurrences):
+Raw: ["173.234.31.186", "173.234.31.186", "212.47.254.145", ...]
+Integer encoding + Dictionary:
+  Convert to uint32: [2910973370, 2910973370, 3561263233, ...]
+  Dictionary + indices for repeated IPs
+  Compression: ~6.8 MB → 2.2 MB (3.1x)
 
-# PATH variables (36,868 occurrences):
-Raw: ["/var/www/html", "/var/www/html", "/var/www/css", ...]
-Prefix compression + dictionary:
-  Common prefix: "/var/www/"
-  Suffixes: ["html", "html", "css", "js", "images/logo.png", ...]
-  Compression: 832,525 bytes → ~180 KB (4.6x)
+# NUM (port/pid) variables (1,458,375 occurrences):
+Raw: [24200, 38926, 24203, 54913, 24220, 58389, ...]
+Numpy array (efficient integer storage):
+  Compression: Uses compact numpy dtype
+  Size: 11.7 MB (efficient integer packing)
 
-# NUM variables (20,868 occurrences):
-Raw: [2330, 2337, 2332, 2331, 0, 7, 2, 1, ...]
-Varint encoding: 48,536 bytes → ~30 KB (1.6x)
+# PATH variables (11 occurrences):
+Raw: ["/var/log/secure", "/etc/ssh/sshd_config", ...]
+Dictionary with prefix compression: 232 bytes
 </code></pre>
             </section>
 
             <!-- Phase 5: Smart Row Ordering -->
             <section>
-                <h2>Phase 5: Smart Row Ordering (117 KB, 44.4x)</h2>
+                <h2>Phase 5: Smart Row Ordering (1.9 MB, 38.7x, Δ1.00x)</h2>
                 <pre><code class="language-python"># Strategy: Group by template, sort within groups by time
 # Before (chronological, interleaved):
-Line 1000: Template 20 "File does not exist"
-Line 1001: Template 19 "Directory forbidden"
-Line 1002: Template 20 "File does not exist"
-Line 1003: Template 16 "Found child"
-Line 1004: Template 20 "File does not exist"
+Line 1000: Template 16 "Failed password for root"
+Line 1001: Template 6  "Connection closed"
+Line 1002: Template 16 "Failed password for root"
+Line 1003: Template 21 "authentication failure"
+Line 1004: Template 16 "Failed password for root"
 # Poor compression - similar patterns scattered
 
 # After (grouped by template):
-Template 20: "File does not exist"  × 20,861 lines
-  [Thu Jun 09 06:07:20 2005] [client 10.0.0.153] ... /var/www/html
-  [Thu Jun 09 06:07:21 2005] [client 10.0.0.153] ... /var/www/css
-  [Thu Jun 09 06:07:22 2005] [client 10.0.0.154] ... /var/www/js
+Template 16: "Failed password for root"  × 139,818 lines
+  Dec 10 06:55:48 LabSZ sshd[24200]: ... from 173.234.31.186 port 38926 ssh2
+  Dec 10 07:14:32 LabSZ sshd[24205]: ... from 218.65.30.43 port 54913 ssh2
+  Dec 10 08:03:17 LabSZ sshd[24220]: ... from 61.174.51.214 port 58389 ssh2
   ... (all similar logs grouped)
 
-Template 19: "Directory forbidden" × 6,745 lines
-Template 16: "Found child" × 6,335 lines
+Template 21: "authentication failure" × 139,572 lines
+Template 6: "Connection closed" × 68,958 lines
 
 # Benefits:
 # - Similar variables adjacent → better delta encoding
@@ -643,37 +701,37 @@ Template 16: "Found child" × 6,335 lines
 
             <!-- Phase 5: The Order Preservation Cost -->
             <section>
-                <h2>Phase 5: Why Only 1.02x Improvement?</h2>
+                <h2>Phase 5: Why No Improvement?</h2>
                 <div class="box danger">
                     <h4>⚠️ Preserving original order is expensive!</h4>
                 </div>
                 
                 <h3 style="margin-top: 30px;">How Order Mapping Works:</h3>
                 <ul>
-                    <li><strong>Raw data:</strong> 56,482 uint32 indices (226 KB)</li>
-                    <li><strong>Delta encoding:</strong> [15342, -15320, 1, -7452, ...] ← smaller numbers</li>
+                    <li><strong>Raw data:</strong> 655,147 uint32 indices (2.6 MB)</li>
+                    <li><strong>Delta encoding:</strong> Small deltas between reordered positions</li>
                     <li><strong>Varint encoding:</strong> Small numbers use fewer bytes</li>
                     <li><strong>Zstd L22:</strong> Compresses patterns in deltas</li>
-                    <li><strong>Result:</strong> 226 KB → 15.7 KB (14.3x compression)</li>
+                    <li><strong>Result:</strong> 2.6 MB → 130 KB (20x compression)</li>
                 </ul>
 
-                <p style="margin-top: 30px;"><strong>Final outcome:</strong> 120 KB → 117 KB (1.02x) because zstd helps compress everything together, partially offsetting the overhead.</p>
+                <p style="margin-top: 30px;"><strong>Final outcome:</strong> 1.895 MB → 1.897 MB (0.999x) - essentially no change because the ordering overhead (130 KB) is offset by better template grouping compression.</p>
                 <p><strong>Solution:</strong> Phase 6 drops order preservation to get the full benefit!</p>
             </section>
 
             <!-- Phase 6: Drop Order Preservation -->
             <section>
-                <h2>Phase 6: Drop Order Preservation (101 KB, 50.7x)</h2>
+                <h2>Phase 6: Drop Order Preservation (1.77 MB, 41.2x, Δ1.07x)</h2>
                 <div class="box">
                     <h4>Remove line ordering for maximum compression</h4>
                 </div>
                 <pre><code class="language-python"># Before (Phase 5): Preserve line numbers
 {
   "templates": [...],
-  "line_to_template": [20, 20, 20, 19, 19, 20, ...],  # 56,482 entries
+  "line_to_template": [16, 16, 16, 6, 21, 16, ...],  # 655,147 entries
   "variables_per_line": {
-    0: {"time": "...", "ip": "...", "path": "..."},
-    1: {"time": "...", "ip": "...", "path": "..."},
+    0: {"time": "...", "pid": ..., "ip": "...", "port": ...},
+    1: {"time": "...", "pid": ..., "ip": "...", "port": ...},
     ...
   }
 }
@@ -682,25 +740,26 @@ Template 16: "Found child" × 6,335 lines
 {
   "templates": [...],
   "template_data": {
-    20: {  # Template 20: 20,861 occurrences
-      "times": ["Thu Jun 09 06:07:20 2005", ...],  # 20,861 values
-      "ips": ["10.0.0.153", ...],                   # 20,861 values
-      "paths": ["/var/www/html", ...]               # 20,861 values
+    16: {  # Template 16: 139,818 occurrences
+      "times": ["Dec 10 06:55:48", ...],         # 139,818 values
+      "pids": [24200, 24205, ...],               # 139,818 values
+      "ips": ["173.234.31.186", ...],            # 139,818 values
+      "ports": [38926, 54913, ...]               # 139,818 values
     },
-    19: {  # Template 19: 6,745 occurrences
-      "times": [...],  # 6,745 values
+    21: {  # Template 21: 139,572 occurrences
+      "times": [...],  # 139,572 values
+      "pids": [...],
       "ips": [...],
-      "paths": [...]
     },
     ...
   }
 }
 
 # Benefits:
-# - No need to store 56,482 line-to-template mappings
+# - No need to store 655,147 line-to-template mappings
 # - Variables perfectly grouped by template
 # - Maximum compression locality
-# - Additional 1.08x improvement</code></pre>
+# - Additional 1.07x improvement</code></pre>
             </section>
 
             <!-- Comparison slide -->
@@ -720,51 +779,51 @@ Template 16: "Found child" × 6,335 lines
                         <tr>
                             <td>1</td>
                             <td>Plain Text</td>
-                            <td class="danger">5.0 MB</td>
+                            <td class="danger">72.7 MB</td>
                             <td>1.0x</td>
                             <td>None (baseline)</td>
                         </tr>
                         <tr>
                             <td>2</td>
                             <td>Plain + zstd</td>
-                            <td class="warning">175 KB</td>
-                            <td class="success">29.3x</td>
+                            <td class="warning">3.0 MB</td>
+                            <td class="success">24.5x</td>
                             <td>Pattern dictionary</td>
                         </tr>
                         <tr>
                             <td>3</td>
                             <td>Templates + zstd</td>
-                            <td class="warning">180 KB</td>
-                            <td class="success">36.4x</td>
+                            <td class="warning">2.0 MB</td>
+                            <td class="success">36.3x</td>
                             <td>CLP template extraction</td>
                         </tr>
                         <tr>
                             <td>4</td>
                             <td>Type-aware vars</td>
-                            <td class="success">120 KB</td>
-                            <td class="success">43.3x</td>
+                            <td class="success">1.9 MB</td>
+                            <td class="success">38.7x</td>
                             <td>Delta/dict per type</td>
                         </tr>
                         <tr>
                             <td>5</td>
                             <td>Smart ordering</td>
-                            <td class="success">117 KB</td>
-                            <td class="success">44.4x</td>
+                            <td class="success">1.9 MB</td>
+                            <td class="success">38.7x</td>
                             <td>Group by template</td>
                         </tr>
                         <tr>
                             <td>6</td>
                             <td>No ordering</td>
-                            <td class="success">101 KB</td>
-                            <td class="success">50.7x</td>
+                            <td class="success">1.77 MB</td>
+                            <td class="success">41.2x</td>
                             <td>Drop line numbers</td>
                         </tr>
                     </tbody>
                 </table>
                 <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>Apache dataset: 38 templates for 56,482 lines</strong></p>
-                    <p class="small-text">Average template reuse: 1,486x</p>
-                    <p class="small-text">From 5.0 MB → 123 KB (40.5x compression)</p>
+                    <p class="small-text"><strong>OpenSSH dataset: 5,669 templates for 655,147 lines</strong></p>
+                    <p class="small-text">Average template reuse: 116x</p>
+                    <p class="small-text">From 72.7 MB → 1.77 MB (41.2x compression)</p>
                 </div>
             </section>
 
@@ -827,8 +886,8 @@ Template 16: "Found child" × 6,335 lines
                     <h4>✅ CLP Algorithm is the Star</h4>
                     <ul class="small-text">
                         <li><strong>Template extraction:</strong> Separating structure from data enables massive compression</li>
-                        <li><strong>Template reuse:</strong> Key metric - Apache achieves 1,486x average reuse</li>
-                        <li><strong>Type-aware encoding:</strong> Each variable type compressed optimally (6-12x per type)</li>
+                        <li><strong>Template reuse:</strong> Key metric - OpenSSH achieves 116x average reuse (5,669 templates for 655k lines)</li>
+                        <li><strong>Type-aware encoding:</strong> Each variable type compressed optimally (3-6x per type)</li>
                         <li><strong>Ordering optimizations:</strong> Grouping similar data improves compression locality</li>
                     </ul>
                 </div>
@@ -836,15 +895,11 @@ Template 16: "Found child" × 6,335 lines
                     <h4>🎯 The Progression</h4>
                     <p class="small-text">
                         <span class="highlight">1x</span> (plain) → 
-                        <span class="highlight">29x</span> (+ zstd) → 
-                        <span class="highlight">28x</span> (+ templates) → 
-                        <span class="highlight">37x</span> (+ type-aware) → 
-                        <span class="highlight">41x</span> (+ optimizations)
+                        <span class="highlight">24.5x</span> (+ zstd) → 
+                        <span class="highlight">36.3x</span> (+ templates) → 
+                        <span class="highlight">38.7x</span> (+ type-aware) → 
+                        <span class="highlight">41.2x</span> (+ optimizations)
                     </p>
-                </div>
-                <div class="box warning" style="margin-top: 10px;">
-                    <h4>⚡ Real-world Systems</h4>
-                    <p class="small-text"><strong>YScope CLP:</strong> Used in production, searchable without full decompression!</p>
                 </div>
             </section>
             <!-- PART 4: TRACES -->
@@ -941,7 +996,7 @@ Template 16: "Found child" × 6,335 lines
 
             <!-- Phase 2: CBOR -->
             <section>
-                <h2>Phase 2: CBOR Binary (39.6 MB, 1.79x)</h2>
+                <h2>Phase 2: CBOR Binary (39.6 MB, 1.79x, Δ1.79x)</h2>
                 <div class="box">
                     <h4>Binary encoding with type tags</h4>
                 </div>
@@ -964,7 +1019,7 @@ A2                        # map(2 items)
 
             <!-- Phase 3: CBOR + zstd -->
             <section>
-                <h2>Phase 3: CBOR + zstd (5.6 MB, 12.6x)</h2>
+                <h2>Phase 3: CBOR + zstd (5.6 MB, 12.6x, Δ7.04x)</h2>
                 <div class="box">
                     <h4>General-purpose compression on binary data</h4>
                 </div>
@@ -987,7 +1042,7 @@ Pattern 4: Repeated tag structures
 
             <!-- Phase 4: Span Relationships -->
             <section>
-                <h2>Phase 4: Span Relationships (2.3 MB, 30.5x)</h2>
+                <h2>Phase 4: Span Relationships (2.3 MB, 30.5x, Δ2.43x)</h2>
                 <div class="box danger">
                     <h4>The Breakthrough: Exploit Trace Structure!</h4>
                 </div>
@@ -1058,7 +1113,7 @@ Others: parent = 0-9</code></pre>
 
             <!-- Phase 5: Columnar Storage -->
             <section>
-                <h2>Phase 5: Columnar Storage (1.9 MB, 37.3x)</h2>
+                <h2>Phase 5: Columnar Storage (1.9 MB, 37.3x, Δ1.22x)</h2>
                 <div class="box">
                     <h4>Separate data by type for better compression</h4>
                 </div>
@@ -1204,61 +1259,35 @@ span3: {duration: 31000000, status: 0, parent: 1}
                     </div>
                 </div>
                 <p class="highlight" style="text-align: center; margin-top: 20px;">
-                    Pick two. You can't have all three optimized.
+                    Not always, but very often tradeoff desicions have to be made - optimizing one hurts the others
                 </p>
             </section>
 
             <section>
                 <h2>💰 Real-World Trade-offs</h2>
-                <table style="font-size: 0.6em;">
-                    <thead>
-                        <tr>
-                            <th>Technique</th>
-                            <th>Compression</th>
-                            <th>Ingest CPU</th>
-                            <th>Query CPU</th>
-                            <th>Production?</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>JSON (baseline)</td>
-                            <td class="danger">1x</td>
-                            <td class="success">Low</td>
-                            <td class="success">Low</td>
-                            <td class="danger">❌ Too big</td>
-                        </tr>
-                        <tr>
-                            <td>CBOR + zstd L6</td>
-                            <td class="warning">15x</td>
-                            <td class="success">Medium</td>
-                            <td class="success">Medium</td>
-                            <td class="success">✅ Good balance</td>
-                        </tr>
-                        <tr>
-                            <td>Columnar + zstd L22</td>
-                            <td class="success">40x</td>
-                            <td class="warning">High</td>
-                            <td class="warning">High</td>
-                            <td class="warning">⚠️ Archives only</td>
-                        </tr>
-                        <tr>
-                            <td>Pattern-aware + zstd L22</td>
-                            <td class="success">80x</td>
-                            <td class="danger">Very High</td>
-                            <td class="danger">Very High</td>
-                            <td class="danger">❌ Too expensive</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <p class="small-text" style="margin-top: 20px;">
-                    <strong>Key insight:</strong> Production systems often use <span class="highlight">tiered storage</span>:
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 20px;">
+                    <div class="box">
+                        <h4>💾 Optimize Storage</h4>
+                        <p class="small-text"><strong>Analyze statistics, pick best algorithm</strong></p>
+                        <p class="small-text" style="margin-top: 10px;"><em>Example:</em> Parquet - auto-selects dictionary/RLE/bit-packing per column based on cardinality and patterns</p>
+                        <p class="danger small-text" style="margin-top: 10px;"><strong>Cost:</strong> Slow ingest & queries</p>
+                    </div>
+                    <div class="box">
+                        <h4>⚡ Optimize Ingest Speed</h4>
+                        <p class="small-text"><strong>Write append-only, compress in background</strong></p>
+                        <p class="small-text" style="margin-top: 10px;"><em>Example:</em> Grafana Loki - buffers chunks in memory, flushes uncompressed, compresses async in object storage</p>
+                        <p class="danger small-text" style="margin-top: 10px;"><strong>Cost:</strong> Higher storage, write amplification</p>
+                    </div>
+                    <div class="box">
+                        <h4>🔍 Optimize Query Speed</h4>
+                        <p class="small-text"><strong>Build indexes to skip decompression</strong></p>
+                        <p class="small-text" style="margin-top: 10px;"><em>Example:</em> Elasticsearch inverted indexes - skip 99% of documents without scanning</p>
+                        <p class="danger small-text" style="margin-top: 10px;"><strong>Cost:</strong> 5-15% storage overhead</p>
+                    </div>
+                </div>
+                <p class="small-text" style="margin-top: 20px; text-align: center;">
+                    <strong>Key insight:</strong> Production systems use <span class="highlight">tiered storage</span> - different techniques for hot (recent), warm (weeks), and cold (archive) data
                 </p>
-                <ul class="small-text">
-                    <li>Hot data (last 24h): Fast format, moderate compression</li>
-                    <li>Warm data (7-30 days): Balanced format, good compression</li>
-                    <li>Cold data (archive): Maximum compression, rare access</li>
-                </ul>
             </section>
 
             <section>
@@ -1273,11 +1302,12 @@ span3: {duration: 31000000, status: 0, parent: 1}
                     </ul>
                 </div>
                 <div class="box" style="margin-top: 10px;">
-                    <h4>YScope CLP (Logs)</h4>
+                    <h4>Elasticsearch (Logs)</h4>
                     <ul class="small-text">
-                        <li>Production CLP implementation with significant compression gains</li>
-                        <li>Searchable without full decompression!</li>
-                        <li>Trade-off: Complex ingest, but worth it at scale</li>
+                        <li>Uses Lucene inverted indexes + LZ4/DEFLATE compression</li>
+                        <li>Compression: ~5-15x (optimized for search speed)</li>
+                        <li>Query speed: Milliseconds with skip lists and indexes</li>
+                        <li>Trade-off: Lower compression for fast full-text search</li>
                     </ul>
                 </div>
                 <div class="box" style="margin-top: 10px;">
@@ -1288,51 +1318,6 @@ span3: {duration: 31000000, status: 0, parent: 1}
                         <li>Trade-off: Optimized for querying by service/operation</li>
                     </ul>
                 </div>
-            </section>
-
-            <section>
-                <h2>📊 When to Use Each Technique</h2>
-                <table style="font-size: 0.55em;">
-                    <thead>
-                        <tr>
-                            <th>Use Case</th>
-                            <th>Recommended Approach</th>
-                            <th>Why</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Hot data (recent)</td>
-                            <td>Binary + zstd L6</td>
-                            <td>Fast ingest/query, decent compression</td>
-                        </tr>
-                        <tr>
-                            <td>Warm data (weeks)</td>
-                            <td>Columnar + zstd L15</td>
-                            <td>Better compression, still queryable</td>
-                        </tr>
-                        <tr>
-                            <td>Cold data (archive)</td>
-                            <td>Pattern-aware + zstd L22</td>
-                            <td>Maximum compression, rare access OK</td>
-                        </tr>
-                        <tr>
-                            <td>Compliance/audit</td>
-                            <td>Logs: CLP format</td>
-                            <td>Searchable without decompression</td>
-                        </tr>
-                        <tr>
-                            <td>Real-time analytics</td>
-                            <td>Columnar (minimal compression)</td>
-                            <td>Query speed over compression</td>
-                        </tr>
-                        <tr>
-                            <td>Data lake / S3</td>
-                            <td>Parquet + Snappy</td>
-                            <td>Industry standard, tool compatibility</td>
-                        </tr>
-                    </tbody>
-                </table>
             </section>
 
             <section>
@@ -1390,8 +1375,8 @@ python main.py --size small
                     <h3>Compression Achievements</h3>
                     <ul style="font-size: 0.9em;">
                         <li>📊 <strong>Metrics:</strong> 84 MB → 1 MB (79.7x) via pattern-aware algorithms</li>
-                        <li>📝 <strong>Logs:</strong> 5 MB → 99 KB (50.8x) via template extraction (CLP)</li>
-                        <li>🔍 <strong>Traces:</strong> 134 KB → 5.4 KB (25x) via relationship encoding</li>
+                        <li>📝 <strong>Logs:</strong> 72.7 MB → 1.77 MB (41.2x) via template extraction (CLP)</li>
+                        <li>🔍 <strong>Traces:</strong> 71.1 MB → 1.9 MB (37.3x) via relationship encoding</li>
                     </ul>
                 </div>
                 <div class="box success" style="margin-top: 30px;">
