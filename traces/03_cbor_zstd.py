@@ -8,11 +8,16 @@ Leverages zstd dictionary compression for repeated field names and service names
 
 import json
 import os
+import sys
 import time
 import cbor2
 import zstandard as zstd
 from pathlib import Path
 from typing import List, Dict, Any
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 def load_cbor_spans(input_file: str) -> List[dict]:
     """Load span data from CBOR file"""
@@ -216,7 +221,7 @@ def benchmark_compression_performance(spans: List[dict], iterations: int = 3):
     cbor_data = cbor2.dumps(spans)
     
     # Compression benchmarks
-    compressor = zstd.ZstdCompressor(level=22, dict_data=compression_dict)  # Use consistent compression level
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL, dict_data=compression_dict)
     
     compress_times = []
     for _ in range(iterations):

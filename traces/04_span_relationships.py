@@ -8,6 +8,7 @@ Groups by trace, uses delta encoding for parent spans, and creates service/opera
 
 import json
 import os
+import sys
 import time
 import msgpack
 import zstandard as zstd
@@ -16,8 +17,11 @@ from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 from dataclasses import dataclass
 
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
+
 # Import our trace encoders
-import sys
 sys.path.append(str(Path(__file__).parent))
 from lib.encoders import Span, Trace, ServiceTopologyEncoder, SpanRelationshipEncoder
 
@@ -266,7 +270,7 @@ def save_relationship_compressed(compressed_data: Dict[str, Any], output_file: s
     msgpack_data = msgpack.packb(compressed_data, use_bin_type=True)
     
     # Compress with zstd
-    compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     compressed_bytes = compressor.compress(msgpack_data)
     
     with open(output_file, 'wb') as f:

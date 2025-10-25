@@ -8,11 +8,17 @@ compression applied for additional space savings.
 """
 
 import os
+import sys
 import pickle
 import msgpack
 import zstandard as zstd
+from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from collections import defaultdict
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 def create_series_key(metric_name: str, labels: Dict[str, str]) -> str:
     """Create a consistent series key from metric name and labels."""
@@ -193,7 +199,7 @@ def main():
     
     # Apply zstd compression
     print(f"Applying zstd compression...")
-    compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Write compressed data

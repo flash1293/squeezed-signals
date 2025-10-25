@@ -2,13 +2,19 @@
 Trace-specific encoding and compression utilities for distributed tracing data.
 """
 
+import sys
 import struct
 import zstandard as zstd
 import msgpack
+from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 import time
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 @dataclass
 class Span:
@@ -206,7 +212,7 @@ class ColumnarTraceEncoder:
     """Column-oriented trace storage"""
     
     def __init__(self):
-        self.compressor = zstd.ZstdCompressor(level=22)
+        self.compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     
     def encode_columnar(self, traces: List[Trace]) -> Dict[str, bytes]:
         """Encode traces in columnar format"""

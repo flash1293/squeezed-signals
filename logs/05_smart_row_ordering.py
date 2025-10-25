@@ -16,6 +16,7 @@ The original ordering information is preserved to allow perfect reconstruction.
 
 import argparse
 import pickle
+import sys
 import time
 import zstandard as zstd
 import json
@@ -24,6 +25,10 @@ from typing import Dict, List, Any, Tuple, Optional
 from collections import defaultdict
 import heapq
 import struct
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 
 def encode_order_mapping_efficient(order_mapping: List[int]) -> bytes:
@@ -390,7 +395,7 @@ def calculate_compression_benefit(original_data: Dict[str, Any], reordered_data:
     reordered_template_data = pickle.dumps(reordered_data['line_to_template'])
     
     # Compress both with zstd
-    compressor = zstd.ZstdCompressor(level=22)
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     
     original_compressed = compressor.compress(original_template_data)
     reordered_compressed = compressor.compress(reordered_template_data)
@@ -465,11 +470,11 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
         raw_size = len(raw_array.tobytes())
         
         # Strategy 1: Simple array + Zstd
-        simple_compressed = zstd.ZstdCompressor(level=22).compress(raw_array.tobytes())
+        simple_compressed = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL).compress(raw_array.tobytes())
         
         # Strategy 2: Delta encoding + varint + Zstd  
         delta_encoded = encode_order_mapping_efficient(original_order_mapping)
-        delta_compressed = zstd.ZstdCompressor(level=22).compress(delta_encoded)
+        delta_compressed = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL).compress(delta_encoded)
         
         print(f"  Mapping raw size: {raw_size:,} bytes")
         print(f"  Simple + Zstd: {len(simple_compressed):,} bytes ({raw_size/len(simple_compressed):.1f}x)")
@@ -513,9 +518,9 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
     uncompressed_data = pickle.dumps(phase5_data, protocol=pickle.HIGHEST_PROTOCOL)
     uncompressed_size = len(uncompressed_data)
     
-    # Apply Zstd Level 22 compression (same as other phases)
-    print("Applying Zstd Level 22 compression...")
-    compressor = zstd.ZstdCompressor(level=22)
+    # Apply Zstd compression (same as other phases)
+    print(f"Applying Zstd Level {DEFAULT_ZSTD_LEVEL} compression...")
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Save compressed data

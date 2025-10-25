@@ -8,6 +8,7 @@ Separates span attributes into optimized columns with column-specific algorithms
 
 import json
 import os
+import sys
 import time
 import msgpack
 import zstandard as zstd
@@ -16,8 +17,11 @@ from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict, Counter
 import struct
 
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
+
 # Import our trace encoders
-import sys
 sys.path.append(str(Path(__file__).parent))
 from lib.encoders import Span, Trace, ColumnarTraceEncoder, calculate_compression_ratio, format_size
 
@@ -85,7 +89,7 @@ class AdvancedColumnarEncoder:
     """Advanced columnar encoding with column-specific optimizations"""
     
     def __init__(self):
-        self.compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
+        self.compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
         
     def analyze_column_patterns(self, values: List[Any], column_name: str) -> Dict[str, Any]:
         """Analyze patterns in a column for optimal compression strategy"""
@@ -460,7 +464,7 @@ def save_columnar_data(compressed_data: Dict[str, Any], output_file: str):
     serialized_data = msgpack.packb(compressed_data, use_bin_type=True)
     
     # Final compression
-    final_compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
+    final_compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     final_compressed = final_compressor.compress(serialized_data)
     
     with open(output_file, 'wb') as f:
@@ -749,7 +753,7 @@ def save_enhanced_columnar_data(enhanced_data: Dict[str, Any], output_file: str)
     print(f"  Total serialized: {len(serialized_data)} bytes")
     
     # Apply final compression
-    final_compressor = zstd.ZstdCompressor(level=22)
+    final_compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     final_compressed = final_compressor.compress(serialized_data)
     
     # Write to file

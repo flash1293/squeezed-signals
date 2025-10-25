@@ -13,6 +13,7 @@ Expected result: ~40-60x compression (better than Zstd's 29x)
 """
 
 import json
+import sys
 import time
 import re
 import zstandard as zstd
@@ -20,6 +21,10 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple, Set
 from collections import defaultdict
 import pickle
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 
 class LogTemplateExtractor:
@@ -261,8 +266,8 @@ class LogTemplateExtractor:
         data_bytes = pickle.dumps(self.extracted_data, protocol=pickle.HIGHEST_PROTOCOL)
         uncompressed_size = len(data_bytes)
         
-        # Apply Zstd Level 22 compression on top of template extraction
-        compressor = zstd.ZstdCompressor(level=22)
+        # Apply Zstd compression on top of template extraction
+        compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
         compressed_data = compressor.compress(data_bytes)
         
         # Save compressed data

@@ -17,12 +17,17 @@ Trade-off: Cannot reconstruct original chronological order
 """
 
 import json
+import sys
 import time
 import pickle
 import zstandard as zstd
 from pathlib import Path
 from typing import Dict, Any
 import argparse
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 
 def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, strategy: str = 'template_grouped') -> Dict[str, Any]:
@@ -97,9 +102,9 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, s
     uncompressed_data = pickle.dumps(phase6_data, protocol=pickle.HIGHEST_PROTOCOL)
     uncompressed_size = len(uncompressed_data)
     
-    # Apply Zstd Level 22 compression
-    print("Applying Zstd Level 22 compression (without order mapping)...")
-    compressor = zstd.ZstdCompressor(level=22)
+    # Apply Zstd compression
+    print(f"Applying Zstd Level {DEFAULT_ZSTD_LEVEL} compression (without order mapping)...")
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Save compressed data

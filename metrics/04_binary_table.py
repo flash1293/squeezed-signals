@@ -8,11 +8,17 @@ general-purpose compression for better results.
 """
 
 import os
+import sys
 import pickle
 import struct
 import msgpack
 import zstandard as zstd
+from pathlib import Path
 from typing import List, Dict, Any, Tuple
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 def create_string_table(data_points: List[Dict[str, Any]]) -> Tuple[Dict[str, int], List[str]]:
     """
@@ -253,7 +259,7 @@ def main():
 
     # Apply zstd compression
     print(f"Applying zstd compression to binary table...")
-    compressor = zstd.ZstdCompressor(level=22)  # Use consistent compression level across all phases
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     compressed_data = compressor.compress(binary_data)
 
     # Store the compressed data

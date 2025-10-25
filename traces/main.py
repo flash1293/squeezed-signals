@@ -13,6 +13,10 @@ import subprocess
 from pathlib import Path
 import argparse
 
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
+
 def run_phase(phase_script: str, size: str):
     """Run a specific phase script"""
     script_path = Path(phase_script)
@@ -133,8 +137,16 @@ def main():
                        help='Dataset size to generate/process')
     parser.add_argument('--phase', type=str, help='Run specific phase (e.g., "01" for phase 1)')
     parser.add_argument('--skip-deps', action='store_true', help='Skip dependency check')
+    parser.add_argument('--zstd-level', type=int, default=None, choices=range(1, 23),
+                       help=f'Zstd compression level (1-22, default: {DEFAULT_ZSTD_LEVEL})')
     
     args = parser.parse_args()
+    
+    # Set zstd level globally if specified
+    if args.zstd_level is not None:
+        import config
+        config.DEFAULT_ZSTD_LEVEL = args.zstd_level
+        print(f"Using zstd compression level: {args.zstd_level}")
     
     print("🚀 Distributed Traces Storage Evolution Pipeline")
     print("=" * 60)

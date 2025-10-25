@@ -8,12 +8,18 @@ zstd compression applied for maximum space efficiency.
 """
 
 import os
+import sys
 import pickle
 import statistics
 import zstandard as zstd
+from pathlib import Path
 from typing import List, Dict, Any, Tuple, Callable
 from collections import defaultdict
 import msgpack
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 def create_time_buckets(timestamps: List[int], values: List[float], interval_seconds: int) -> Dict[int, List[Tuple[int, float]]]:
     """
@@ -296,7 +302,7 @@ def store_downsampled_data(downsampled_datasets: Dict[int, List[Dict[str, Any]]]
         import zstandard as zstd
         
         msgpack_data = msgpack.packb(enhanced_compressed, use_bin_type=True)
-        compressor = zstd.ZstdCompressor(level=22)  # Maximum compression like Phase 6
+        compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
         compressed_data_bytes = compressor.compress(msgpack_data)
         
         with open(output_file, "wb") as f:
@@ -401,9 +407,9 @@ def store_downsampled_data_basic(downsampled_datasets: Dict[int, List[Dict[str, 
         
         # Store using MessagePack (same as Phase 5)
         output_file = os.path.join(output_dir, f"metrics.downsampled.{interval}s.zst")
-        # Serialize and compress with zstd (same level as Phase 6)
+        # Serialize and compress with zstd
         msgpack_data = msgpack.packb(compressed_data, use_bin_type=True)
-        compressor = zstd.ZstdCompressor(level=22)
+        compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
         compressed_msgpack = compressor.compress(msgpack_data)
         
         with open(output_file, "wb") as f:

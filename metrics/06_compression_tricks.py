@@ -7,13 +7,20 @@ optimizations for maximum space efficiency.
 """
 
 import os
+import sys
 import pickle
 import msgpack
 import struct
 import zstandard as zstd
 import math
+from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from collections import Counter, defaultdict
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
+
 from lib.encoders import (
     delta_encode_timestamps, delta_decode_timestamps,
     run_length_encode, run_length_decode,
@@ -793,8 +800,8 @@ def main():
     print(f"\nApplying zstd compression to enhanced compressed data...")
     msgpack_data = msgpack.packb(compressed_data, use_bin_type=True)
     
-    # Apply zstd compression with maximum compression level
-    compressor = zstd.ZstdCompressor(level=22)  # Maximum compression level
+    # Apply zstd compression
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     final_compressed_data = compressor.compress(msgpack_data)
     
     # Store final compressed data

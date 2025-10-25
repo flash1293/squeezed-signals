@@ -10,10 +10,15 @@ Expected result: ~3-5x compression
 """
 
 import json
+import sys
 import time
 import zstandard as zstd
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 
 class ZstdLogStorage:
@@ -22,10 +27,10 @@ class ZstdLogStorage:
     This builds on the plain text baseline but adds compression.
     """
     
-    def __init__(self, compression_level: int = 22):
+    def __init__(self, compression_level: int = None):
         self.lines: List[str] = []
-        self.compression_level = compression_level
-        self.compressor = zstd.ZstdCompressor(level=compression_level)
+        self.compression_level = compression_level if compression_level is not None else DEFAULT_ZSTD_LEVEL
+        self.compressor = zstd.ZstdCompressor(level=self.compression_level)
         self.decompressor = zstd.ZstdDecompressor()
         self.metadata = {
             'total_lines': 0,
@@ -142,8 +147,10 @@ class ZstdLogStorage:
 
 
 def process_log_file(input_file: Path, output_file: Path, metadata_file: Path, 
-                    compression_level: int = 22) -> Dict[str, Any]:
+                    compression_level: int = None) -> Dict[str, Any]:
     """Process a log file with Zstd compression"""
+    if compression_level is None:
+        compression_level = DEFAULT_ZSTD_LEVEL
     print(f"Processing {input_file.name} with Zstd compression (level {compression_level})...")
     
     start_time = time.time()
@@ -193,8 +200,8 @@ def main():
     parser = argparse.ArgumentParser(description='Phase 2: Zstd Compressed Log Storage')
     parser.add_argument('--size', choices=['small', 'big', 'huge'], default='small',
                        help='Dataset size to process (default: small)')
-    parser.add_argument('--level', type=int, default=22, choices=range(1, 23),
-                       help='Zstd compression level (1-22, default: 22)')
+    parser.add_argument('--level', type=int, default=None, choices=range(1, 23),
+                       help=f'Zstd compression level (1-22, default: {DEFAULT_ZSTD_LEVEL})')
     
     args = parser.parse_args()
     

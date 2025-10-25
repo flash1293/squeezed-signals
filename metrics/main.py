@@ -10,7 +10,12 @@ import os
 import sys
 import time
 import argparse
+from pathlib import Path
 from typing import List, Dict, Any
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 def run_phase(phase_number: int, phase_name: str, script_name: str) -> Dict[str, Any]:
     """
@@ -182,7 +187,15 @@ def main():
     parser = argparse.ArgumentParser(description='Run Metrics Storage Engine Evolution Demonstration')
     parser.add_argument('--size', choices=['small', 'big', 'huge'], default='small',
                        help='Dataset size: small (50k points), big (5M points), or huge (100M points). Default: small')
+    parser.add_argument('--zstd-level', type=int, default=None, choices=range(1, 23),
+                       help=f'Zstd compression level (1-22, default: {DEFAULT_ZSTD_LEVEL})')
     args = parser.parse_args()
+    
+    # Set zstd level globally if specified
+    if args.zstd_level is not None:
+        import config
+        config.DEFAULT_ZSTD_LEVEL = args.zstd_level
+        print(f"Using zstd compression level: {args.zstd_level}")
     
     print(f"🚀 Starting Metrics Storage Engine Evolution Demonstration")
     print(f"📊 Dataset size: {args.size}")

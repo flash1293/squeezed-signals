@@ -23,6 +23,11 @@ import time
 from pathlib import Path
 from typing import Dict, List, Any
 
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
+
+
 def run_phase_0(size: str, force: bool = False) -> bool:
     """Run Phase 0: Generate realistic log data from LogHub"""
     print("🔄 Phase 0: Generate Realistic Log Data")
@@ -94,9 +99,11 @@ def run_phase_1(size: str) -> bool:
         return False
 
 
-def run_phase_2(size: str) -> bool:
+def run_phase_2(size: str, zstd_level: int = None) -> bool:
     """Run Phase 2: Zstd compression"""
-    print("\n🔄 Phase 2: Zstd Compression (Level 22)")
+    if zstd_level is None:
+        zstd_level = DEFAULT_ZSTD_LEVEL
+    print(f"\n🔄 Phase 2: Zstd Compression (Level {zstd_level})")
     print("-" * 50)
     
     try:
@@ -114,8 +121,8 @@ def run_phase_2(size: str) -> bool:
             print(f"❌ Input file not found: {input_file}")
             return False
         
-        # Run processing with level 22
-        metadata = phase2_module.process_log_file(input_file, output_file, metadata_file, compression_level=22)
+        # Run processing with specified zstd level
+        metadata = phase2_module.process_log_file(input_file, output_file, metadata_file, compression_level=zstd_level)
         
         print(f"✅ Phase 2 completed successfully")
         print(f"   Compression ratio: {metadata['compression_ratio']:.2f}x")
@@ -439,8 +446,16 @@ def main():
                        help='Force regeneration of Phase 0 data even if cached')
     parser.add_argument('--verify', action='store_true',
                        help='Run verification tests on all phases to ensure data integrity')
+    parser.add_argument('--zstd-level', type=int, default=None, choices=range(1, 23),
+                       help=f'Zstd compression level (1-22, default: {DEFAULT_ZSTD_LEVEL})')
     
     args = parser.parse_args()
+    
+    # Set zstd level globally if specified
+    if args.zstd_level is not None:
+        import config
+        config.DEFAULT_ZSTD_LEVEL = args.zstd_level
+        print(f"Using zstd compression level: {args.zstd_level}")
     
     # Determine sizes to run
     if args.size:
@@ -484,7 +499,7 @@ def main():
                     size_success = False
                     break
             elif phase == 2:
-                if not run_phase_2(size):
+                if not run_phase_2(size, zstd_level=args.zstd_level):
                     size_success = False
                     break
             elif phase == 3:

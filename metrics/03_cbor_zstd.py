@@ -17,12 +17,18 @@ from pathlib import Path
 lib_path = Path(__file__).parent / "lib"
 sys.path.insert(0, str(lib_path))
 
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
+
 from data_generator import load_dataset
 import cbor2
 
 
-def store_as_cbor_zstd(data_points, output_file, compression_level=22):
+def store_as_cbor_zstd(data_points, output_file, compression_level=None):
     """Store data points in zstd-compressed CBOR format"""
+    if compression_level is None:
+        compression_level = DEFAULT_ZSTD_LEVEL
     print(f"Writing {len(data_points):,} data points to zstd-compressed CBOR format...")
     
     # First, serialize all data to CBOR in memory
@@ -30,7 +36,7 @@ def store_as_cbor_zstd(data_points, output_file, compression_level=22):
     for point in data_points:
         cbor_data.extend(cbor2.dumps(point))
     
-    # Then compress with zstd (maximum compression level for consistency)
+    # Compress with zstd
     compressor = zstd.ZstdCompressor(level=compression_level)
     compressed_data = compressor.compress(cbor_data)
     

@@ -16,6 +16,7 @@ Expected result: 50-100x compression (significant improvement over Phase 3's 36x
 """
 
 import json
+import sys
 import time
 import re
 import zstandard as zstd
@@ -26,6 +27,10 @@ from collections import defaultdict, Counter
 import pickle
 import hashlib
 from datetime import datetime
+
+# Add project root to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import DEFAULT_ZSTD_LEVEL
 
 
 class AdvancedVariableEncoder:
@@ -796,9 +801,9 @@ def process_log_file(input_file: Path, output_file: Path, metadata_file: Path) -
     uncompressed_data = pickle.dumps(phase4_data, protocol=pickle.HIGHEST_PROTOCOL)
     uncompressed_size = len(uncompressed_data)
     
-    # Apply Zstd Level 22 compression
-    print("Applying Zstd Level 22 compression...")
-    compressor = zstd.ZstdCompressor(level=22)
+    # Apply Zstd compression
+    print(f"Applying Zstd Level {DEFAULT_ZSTD_LEVEL} compression...")
+    compressor = zstd.ZstdCompressor(level=DEFAULT_ZSTD_LEVEL)
     compressed_data = compressor.compress(uncompressed_data)
     
     # Save compressed data
