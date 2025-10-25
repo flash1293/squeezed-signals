@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squeezed Signals: Observability Data Compression</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reset.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/black.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/monokai.css">
+    <style>
+        .reveal h1, .reveal h2, .reveal h3 {
+            text-transform: none;
+        }
+        .reveal section {
+            text-align: left;
+        }
+        .reveal section.center {
+            text-align: center;
+        }
+        .reveal pre {
+            width: 100%;
+            font-size: 0.5em;
+        }
+        .reveal code {
+            font-family: 'Courier New', monospace;
+        }
+        .reveal table {
+            font-size: 0.7em;
+        }
+        .reveal .highlight {
+            color: #42affa;
+            font-weight: bold;
+        }
+        .reveal .success {
+            color: #5cb85c;
+        }
+        .reveal .warning {
+            color: #f0ad4e;
+        }
+        .reveal .danger {
+            color: #d9534f;
+        }
+        .comparison-table {
+            margin: 20px auto;
+        }
+        .comparison-table th {
+            background-color: #42affa;
+        }
+        .comparison-table td {
+            text-align: center;
+        }
+        .emoji {
+            font-size: 1.5em;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .box {
+            border: 2px solid #42affa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .small-text {
+            font-size: 0.8em;
+        }
+        .formula {
+            background: #1a1a1a;
+            padding: 10px;
+            border-left: 4px solid #42affa;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- Title Slide -->
+            <section class="center">
+                <h1>🗜️ Squeezed Signals</h1>
+                <h3>The Evolution of Observability Data Storage</h3>
+                <p style="margin-top: 50px;">A deep dive into compressing metrics, logs, and traces</p>
+                <p class="small-text" style="margin-top: 50px;">Press <kbd>Space</kbd> to navigate →</p>
+            </section>
+
+            <!-- Agenda -->
+            <section>
+                <h2>📋 Agenda (45 minutes)</h2>
+                <ol>
+                    <li><strong>Introduction</strong> - The observability data explosion (5 min)</li>
+                    <li><strong>Metrics</strong> - Time-series compression (12 min)</li>
+                    <li><strong>Logs</strong> - Structured text compression (12 min)</li>
+                    <li><strong>Traces</strong> - Distributed execution compression (10 min)</li>
+                    <li><strong>Reality Check</strong> - Trade-offs & practical considerations (6 min)</li>
+                </ol>
+            </section>
+
+            <!-- PART 1: INTRODUCTION -->
+            <section class="center">
+                <h1>Part 1: Introduction</h1>
+                <p>The Observability Data Problem</p>
+            </section>
+
+            <section>
+                <h2>🔭 What is Observability?</h2>
+                <div class="box">
+                    <p><strong>Observability</strong> = Understanding what's happening inside your systems</p>
+                </div>
+                <div class="two-column">
+                    <div>
+                        <h4>📊 Metrics</h4>
+                        <p class="small-text">Numerical measurements</p>
+                        <ul class="small-text">
+                            <li>CPU usage: 72.3%</li>
+                            <li>Requests/sec: 1,247</li>
+                            <li>Memory: 4.2 GB</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>📝 Logs</h4>
+                        <p class="small-text">Text event records</p>
+                        <ul class="small-text">
+                            <li>"User logged in"</li>
+                            <li>"Error: Connection timeout"</li>
+                            <li>"Request processed in 42ms"</li>
+                        </ul>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h4>🔍 Traces</h4>
+                    <p class="small-text">Distributed request flows across microservices</p>
+                    <p class="small-text">api-gateway → user-service → auth-service → database</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>💥 The Data Explosion</h2>
+                <div class="box warning">
+                    <p><strong>Real-world scale:</strong></p>
+                    <ul>
+                        <li>Large companies: <span class="highlight">100+ million</span> metrics</li>
+                        <li>Each metric: <span class="highlight">1 data point per minute</span></li>
+                        <li>Retention: <span class="highlight">1+ years</span></li>
+                    </ul>
+                </div>
+                <div class="formula">
+                    100M metrics × 60 points/hour × 24 hours × 365 days<br>
+                    = <span class="danger">525 trillion data points per year</span>
+                </div>
+                <p class="small-text" style="margin-top: 20px;">At 8 bytes per point (timestamp + value):</p>
+                <p class="highlight" style="text-align: center; font-size: 1.5em;">~4.2 Petabytes uncompressed!</p>
+            </section>
+
+            <section>
+                <h2>🎯 Project Goals</h2>
+                <div class="box">
+                    <h4>Primary Goal</h4>
+                    <p>Demonstrate <span class="highlight">progressive compression techniques</span> from naive approaches to production-grade algorithms</p>
+                </div>
+                <div class="two-column" style="margin-top: 20px;">
+                    <div class="box success">
+                        <h4>✅ What We'll Cover</h4>
+                        <ul class="small-text">
+                            <li>Lossless compression</li>
+                            <li>Domain-specific techniques</li>
+                            <li>Real-world algorithms</li>
+                            <li>Measurable improvements</li>
+                        </ul>
+                    </div>
+                    <div class="box warning">
+                        <h4>⚠️ Important Note</h4>
+                        <ul class="small-text">
+                            <li>Focus: Storage size</li>
+                            <li>Not covered deeply: Query speed, Ingest CPU</li>
+                            <li>These matter in production!</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>📊 Overview</h2>
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Signal Type</th>
+                            <th>Starting Format</th>
+                            <th>Approach</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>📊 Metrics</td>
+                            <td>84 MB NDJSON</td>
+                            <td>Pattern-aware algorithms</td>
+                        </tr>
+                        <tr>
+                            <td>📝 Logs</td>
+                            <td>5 MB Plain Text</td>
+                            <td>Template extraction</td>
+                        </tr>
+                        <tr>
+                            <td>🔍 Traces</td>
+                            <td>134 KB NDJSON</td>
+                            <td>Span relationships</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="small-text" style="text-align: center; margin-top: 30px;">
+                    Each uses different strategies tailored to data characteristics
+                </p>
+            </section>
+
+            <!-- PART 2: METRICS -->
+            <section class="center">
+                <h1>Part 2: Metrics</h1>
+                <p>📊 Time-Series Compression Journey</p>
+            </section>
+
+            <section>
+                <h2>What Are Metrics?</h2>
+                <div class="box">
+                    <h4>Time-series numerical data</h4>
+                    <p class="small-text">Regular intervals, labeled dimensions</p>
+                </div>
+                <pre><code class="language-json">{
+  "metric_name": "system.cpu.user",
+  "labels": {
+    "host": "server-01",
+    "datacenter": "us-west-1"
+  },
+  "timestamp": 1698000000,
+  "value": 72.34567
+}</code></pre>
+                <p class="small-text"><strong>Key characteristics:</strong></p>
+                <ul class="small-text">
+                    <li>Timestamps are regular (e.g., every 60 seconds)</li>
+                    <li>Values change slowly (temporal locality)</li>
+                    <li>Labels repeat across many series</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>📈 Metrics: Progressive Journey</h2>
+                <div class="box">
+                    <h4>We'll explore 6 compression phases</h4>
+                    <p class="small-text">Each phase builds on the previous, demonstrating how domain knowledge compounds with general techniques</p>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="small-text"><strong>Starting point:</strong> 80.8 MB NDJSON</p>
+                    <p class="small-text">Each phase will reveal new techniques and improvements</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>Phase 1→3: Foundation (21x)</h2>
+                <div class="two-column">
+                    <div>
+                        <h4>NDJSON → CBOR (1.3x)</h4>
+                        <pre><code class="language-json">// JSON: 80.8 MB
+{"timestamp": 1698000000}
+
+// CBOR: 63.9 MB (binary)
+A1 69 74696D657374616D70 1A 6536...</code></pre>
+                        <p class="small-text">Binary encoding is more compact</p>
+                    </div>
+                    <div>
+                        <h4>CBOR → CBOR+zstd (21x)</h4>
+                        <p class="small-text">Add general-purpose compression</p>
+                        <ul class="small-text">
+                            <li>Dictionary compression</li>
+                            <li>Repeated pattern detection</li>
+                            <li>Huffman coding</li>
+                        </ul>
+                        <p class="small-text highlight">Biggest single jump: 16x improvement!</p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>Phase 4: Binary Table (29x)</h2>
+                <div class="box">
+                    <h4>Key Insight: String Deduplication</h4>
+                </div>
+                <pre><code class="language-python"># Before: Each row stores full strings
+{name: "system.cpu.user", labels: {host: "server-01", dc: "us-west-1"}}
+{name: "system.cpu.user", labels: {host: "server-01", dc: "us-west-1"}}
+# "system.cpu.user" repeated 1000 times = 17,000 bytes
+
+# After: Store strings once, use IDs
+strings: ["system.cpu.user", "server-01", "us-west-1"]
+rows: [{name_id: 0, label_ids: [1, 2]}, {name_id: 0, label_ids: [1, 2]}]
+# 17 bytes + (1000 × 3 bytes) = 3,017 bytes
+
+# Savings: 5.6x just from deduplication!</code></pre>
+            </section>
+
+            <section>
+                <h2>Phase 5: Columnar Storage (40x)</h2>
+                <div class="box">
+                    <h4>Key Insight: Group Similar Data</h4>
+                </div>
+                <div class="two-column">
+                    <div>
+                        <h4>Row-oriented (Before)</h4>
+                        <pre><code class="language-python">row1: {ts: 1000, val: 72.3}
+row2: {ts: 1060, val: 72.4}
+row3: {ts: 1120, val: 72.5}</code></pre>
+                        <p class="small-text">Mixed types, poor compression</p>
+                    </div>
+                    <div>
+                        <h4>Column-oriented (After)</h4>
+                        <pre><code class="language-python">timestamps: [1000, 1060, 1120]
+values:     [72.3, 72.4, 72.5]</code></pre>
+                        <p class="small-text">Similar values together = better compression</p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>Phase 6: Pattern-Aware Algorithms (80x)</h2>
+                <div class="box danger">
+                    <h4>The Breakthrough: Understand the Data!</h4>
+                </div>
+                <p class="small-text">Detect patterns and apply specialized compression:</p>
+                <ul class="small-text">
+                    <li><strong>Constant values:</strong> Store once + count (∞ compression!)</li>
+                    <li><strong>Near-constant:</strong> Base value + tiny deltas</li>
+                    <li><strong>Power-of-2:</strong> Store exponents instead of values</li>
+                    <li><strong>Mostly integers:</strong> Split integer/fractional parts</li>
+                    <li><strong>Periodic patterns:</strong> Template + deviations</li>
+                    <li><strong>Sparse data:</strong> Store only non-zero indices + values</li>
+                </ul>
+                <p class="highlight" style="margin-top: 20px; text-align: center;">
+                    Result: 3.19 bytes per data point (vs 8 bytes original)
+                </p>
+            </section>
+
+            <section>
+                <h2>Deep Dive: XOR Compression</h2>
+                <div class="box">
+                    <h4>Facebook Gorilla Algorithm</h4>
+                    <p class="small-text">Exploit floating-point similarity</p>
+                </div>
+                <pre><code class="language-python"># Two similar floats:
+prev = 72.34567  # Binary: 0x4052162E147AE148
+curr = 72.34589  # Binary: 0x4052162E851EB852
+
+# XOR reveals differences:
+xor = prev ^ curr  # 0x00000000C24493A
+                   # Only 35 bits differ!
+
+# Store only the different bits:
+# - Control bit: 1 (different value)
+# - Leading zeros: 28
+# - Significant bits: 35
+# Total: 1 + 6 + 6 + 35 = 48 bits vs 64 bits original
+
+# For slowly-changing values: 25-40% compression</code></pre>
+            </section>
+
+            <section>
+                <h2>Deep Dive: Delta Encoding</h2>
+                <div class="box">
+                    <h4>Store Differences, Not Absolute Values</h4>
+                </div>
+                <pre><code class="language-python"># Regular timestamps:
+timestamps = [1000, 1060, 1120, 1180, 1240]
+# Each: 8 bytes = 40 bytes total
+
+# Delta encoding:
+first = 1000
+deltas = [60, 60, 60, 60]
+# first (8 bytes) + deltas (4×2 bytes) = 16 bytes
+
+# Double-delta (deltas of deltas):
+deltas = [60, 60, 60, 60]
+delta_deltas = [0, 0, 0]  # All zeros!
+# Run-length encode: "60 repeated 4 times"
+# Result: 12 bytes (3x compression!)</code></pre>
+            </section>
+
+            <section>
+                <h2>Metrics: Key Takeaways</h2>
+                <div class="box success">
+                    <h4>✅ What Worked</h4>
+                    <ul class="small-text">
+                        <li><strong>Binary encoding</strong> - Simple, 1.3x gain</li>
+                        <li><strong>Generic compression</strong> - zstd gives 21x without domain knowledge</li>
+                        <li><strong>Columnar storage</strong> - Group similar data types</li>
+                        <li><strong>Pattern detection</strong> - Specialized algorithms per pattern type</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>🎯 The Progression</h4>
+                    <p class="small-text">
+                        <span class="highlight">1x</span> (JSON) → 
+                        <span class="highlight">21x</span> (+ zstd) → 
+                        <span class="highlight">40x</span> (+ columnar) → 
+                        <span class="highlight">80x</span> (+ patterns)
+                    </p>
+                    <p class="small-text">Each technique builds on previous work!</p>
+                </div>
+            </section>
+
+            <!-- PART 3: LOGS -->
+            <section class="center">
+                <h1>Part 3: Logs</h1>
+                <p>📝 Structured Text Compression</p>
+            </section>
+
+            <section>
+                <h2>What Are Logs?</h2>
+                <div class="box">
+                    <h4>Semi-structured text event records</h4>
+                </div>
+                <pre><code class="language-log">081109 203615 143 INFO dfs.DataNode: Receiving block blk_-1608999687919862906
+081109 203617 145 INFO dfs.DataNode: Receiving block blk_-1608999687919862907
+081109 203619 147 INFO dfs.DataNode: Receiving block blk_-1608999687919862908
+
+192.168.1.100 - - [10/Oct/2023:13:55:36 +0000] "GET /index.html HTTP/1.1" 200 1024
+192.168.1.101 - - [10/Oct/2023:13:55:37 +0000] "GET /style.css HTTP/1.1" 200 2048
+</code></pre>
+                <p class="small-text"><strong>Key characteristics:</strong></p>
+                <ul class="small-text">
+                    <li>Repeated templates with variable values</li>
+                    <li>Variable types: timestamps, IPs, IDs, numbers, paths</li>
+                    <li>Massive redundancy in structure</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>📈 Logs: Progressive Journey</h2>
+                <div class="box">
+                    <h4>We'll explore 6 compression phases</h4>
+                    <p class="small-text">From plain text through advanced log-specific techniques</p>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="small-text"><strong>Starting point:</strong> 5.0 MB plain text (Apache dataset: 56,482 lines)</p>
+                    <p class="small-text">Each phase will demonstrate new optimizations</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>Phase 3: Template Extraction (CLP)</h2>
+                <div class="box danger">
+                    <h4>The Breakthrough Algorithm!</h4>
+                    <p class="small-text">Compressed Log Processor (YScope CLP)</p>
+                </div>
+                <pre><code class="language-python"># Original log line:
+"081109 203615 143 INFO dfs.DataNode: Receiving block blk_-160899"
+
+# CLP separates structure from data:
+Template: "<TIMESTAMP> <NUM> INFO dfs.DataNode: Receiving block <ID>"
+Variables: {
+    TIMESTAMP: "081109 203615",
+    NUM: 143,
+    ID: "blk_-160899"
+}
+
+# For 56,482 lines:
+# Only 38 unique templates!
+# Average reuse: 1,486 lines per template</code></pre>
+            </section>
+
+            <section>
+                <h2>Why Template Extraction Works</h2>
+                <div class="formula">
+                    # One template used 347 times:<br>
+                    Template: "INFO dfs.DataNode: Receiving block" (47 bytes)<br>
+                    <br>
+                    <span class="warning">Plain text:</span> 347 × 47 bytes = 16,309 bytes<br>
+                    <span class="success">CLP:</span> 47 bytes (template) + 347 × 2 bytes (IDs) = 741 bytes<br>
+                    <br>
+                    <span class="highlight">Savings: 22x for just this template!</span>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="small-text"><strong>Real production systems:</strong> CLP-based systems achieve significant compression on logs with thousands of templates used millions of times each</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>Phase 4: Variable Encoding</h2>
+                <div class="box">
+                    <h4>Type-Specific Compression for Variables</h4>
+                </div>
+                <div class="two-column small-text">
+                    <div>
+                        <h4>Timestamps</h4>
+                        <pre><code>["081109 203615", "081109 203617", ...]
+# Delta encode:
+base + [0, 2, 2, 2, 3, ...]
+# Compression: 6-15x</code></pre>
+                    </div>
+                    <div>
+                        <h4>IP Addresses</h4>
+                        <pre><code>["192.168.1.100", "192.168.1.101", ...]
+# Dictionary + delta:
+prefix: "192.168.1."
+deltas: [100, 101, 102, ...]
+# Compression: 3-12x</code></pre>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h4>Block IDs / UUIDs</h4>
+                    <pre><code class="small-text">["blk_-1608999687919862906", "blk_-1608999687919862907", ...]
+# Sequential detection:
+prefix: "blk_-160899968791986"
+sequence: [2906, 2907, 2908, ...]  # Delta encode these!
+# Compression: 6-11x</code></pre>
+                </div>
+            </section>
+
+            <section>
+                <h2>Phase 5-6: Final Optimizations</h2>
+                <div class="two-column">
+                    <div class="box">
+                        <h4>Phase 5: Smart Ordering</h4>
+                        <p class="small-text">Group similar logs together</p>
+                        <pre><code class="small-text"># Before:
+template1, template2, template1
+template3, template1, template2
+
+# After:
+template1, template1, template1
+template2, template2
+template3
+
+# Better zstd compression: +1.02x</code></pre>
+                    </div>
+                    <div class="box">
+                        <h4>Phase 6: Drop Order</h4>
+                        <p class="small-text">Remove temporal ordering</p>
+                        <pre><code class="small-text"># Before:
+Must preserve line order
+[line 1, line 2, line 3, ...]
+
+# After:
+Group by template, no order
+template_1: [vars1, vars2, ...]
+template_2: [vars3, vars4, ...]
+
+# Additional: +1.14x</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>Logs: Dataset Comparison</h2>
+                <table style="font-size: 0.6em;">
+                    <thead>
+                        <tr>
+                            <th>Dataset</th>
+                            <th>Lines</th>
+                            <th>Templates</th>
+                            <th>Reuse</th>
+                            <th>Final Ratio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Apache</td>
+                            <td>56,482</td>
+                            <td>38</td>
+                            <td class="success">1,486x</td>
+                            <td class="success">50.8x</td>
+                        </tr>
+                        <tr>
+                            <td>HDFS</td>
+                            <td>74,859</td>
+                            <td>18</td>
+                            <td class="success">4,159x</td>
+                            <td class="warning">24.2x</td>
+                        </tr>
+                        <tr>
+                            <td>OpenSSH</td>
+                            <td>655,147</td>
+                            <td>5,669</td>
+                            <td class="warning">116x</td>
+                            <td class="success">41.2x</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="small-text"><strong>Key insight:</strong> More template reuse = better compression!</p>
+                    <p class="small-text">Apache: Very structured, high reuse → best compression</p>
+                    <p class="small-text">OpenSSH: Many unique templates, lower reuse → moderate compression</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>Logs: Key Takeaways</h2>
+                <div class="box success">
+                    <h4>✅ CLP Algorithm is the Star</h4>
+                    <ul class="small-text">
+                        <li>Separating structure from data enables massive compression</li>
+                        <li>Template reuse is the key metric: more reuse = better compression</li>
+                        <li>Production systems achieve significant compression on large-scale logs</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>🎯 The Progression</h4>
+                    <p class="small-text">
+                        <span class="highlight">1x</span> (plain) → 
+                        <span class="highlight">29x</span> (+ zstd) → 
+                        <span class="highlight">36x</span> (+ templates) → 
+                        <span class="highlight">51x</span> (+ variable encoding + optimizations)
+                    </p>
+                </div>
+                <div class="box warning" style="margin-top: 10px;">
+                    <h4>⚡ Real-world Systems</h4>
+                    <p class="small-text"><strong>YScope CLP:</strong> Used in production, searchable without decompression!</p>
+                </div>
+            </section>
+            <!-- PART 4: TRACES -->
+            <section class="center">
+                <h1>Part 4: Traces</h1>
+                <p>🔍 Distributed Execution Compression</p>
+            </section>
+
+            <section>
+                <h2>What Are Traces?</h2>
+                <div class="box">
+                    <h4>Distributed request execution flows</h4>
+                    <p class="small-text">Track a request across multiple microservices</p>
+                </div>
+                <pre class="small-text"><code>User Request → api-gateway (50ms)
+                  ↓
+               user-service (30ms)
+                  ↓
+               auth-service (20ms)
+                  ↓
+               auth-db (10ms)</code></pre>
+                <p class="small-text"><strong>Each "span" contains:</strong></p>
+                <ul class="small-text">
+                    <li>trace_id (links all spans in one request)</li>
+                    <li>span_id + parent_span_id (tree structure)</li>
+                    <li>service_name, operation_name</li>
+                    <li>start_time, end_time (nanoseconds)</li>
+                    <li>tags, logs, status</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>📈 Traces: Progressive Journey</h2>
+                <div class="box">
+                    <h4>We'll explore 5 compression phases</h4>
+                    <p class="small-text">From JSON through trace structure exploitation</p>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="small-text"><strong>Starting point:</strong> 134.3 KB NDJSON (100 traces, 267 spans, 12 services)</p>
+                    <p class="small-text">Each phase will reveal new structural optimizations</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>Phase 4: Span Relationships</h2>
+                <div class="box danger">
+                    <h4>The Breakthrough: Exploit Trace Structure!</h4>
+                </div>
+                <div class="two-column small-text">
+                    <div>
+                        <h4>Problem: Repeated Service Names</h4>
+                        <pre><code>"api-gateway" × 30 times
+= 330 bytes
+
+"user-service" × 25 times
+= 300 bytes
+
+Total: ~3,000 bytes</code></pre>
+                    </div>
+                    <div>
+                        <h4>Solution: Service Dictionary</h4>
+                        <pre><code>services: {
+  0: "api-gateway",
+  1: "user-service",
+  ...
+}
+
+spans: [
+  {svc: 0}, {svc: 1}, ...
+]
+
+Total: ~350 bytes (8.6x!)</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>Parent-Child Delta Encoding</h2>
+                <div class="box">
+                    <h4>Problem: Full UUIDs for relationships</h4>
+                </div>
+                <pre><code class="small-text">span_id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"  (36 bytes)
+parent_span_id: "550e8400-e29b-41d4-a716-446655440000"  (36 bytes)
+# 267 spans × 72 bytes = 19,224 bytes!</code></pre>
+                <div class="box success" style="margin-top: 20px;">
+                    <h4>Solution: Sequential IDs within trace</h4>
+                </div>
+                <pre><code class="small-text">Trace A spans: 0, 1, 2, 3, 4
+Parent IDs: -1, 0, 1, 2, 1  (root=-1, others reference parent)
+
+span 0: parent=-1 (root)
+span 1: parent=0  (child of root)
+span 2: parent=1  (grandchild)
+span 3: parent=2  (great-grandchild)
+span 4: parent=1  (sibling of span 2)
+
+# 267 spans × 2 bytes = 534 bytes (36x compression!)</code></pre>
+            </section>
+
+            <section>
+                <h2>Timestamp Delta Encoding</h2>
+                <div class="box">
+                    <h4>Problem: Absolute nanosecond timestamps</h4>
+                </div>
+                <pre><code class="small-text">start_time: 1698000000000000  (16 digits, 8 bytes)</code></pre>
+                <div class="box success" style="margin-top: 20px;">
+                    <h4>Solution: Delta from root span</h4>
+                </div>
+                <pre><code class="small-text">Root span: start=1698000000000000 (reference)
+Child span 1: start=1698000000052000
+  → Delta: 52000 (52μs, 3 bytes with varint)
+
+Child span 2: start=1698000000123000
+  → Delta: 123000 (123μs, 3 bytes)
+
+# Typical deltas: 10,000-500,000 (10μs-500ms)
+# Result: 2-4 bytes instead of 8 bytes
+# Compression: 2-4x on timestamps</code></pre>
+            </section>
+
+            <section>
+                <h2>Phase 5: Columnar Storage</h2>
+                <div class="box">
+                    <h4>Alternative: Optimize for Analytics</h4>
+                    <p class="small-text">Trade sequential access for query performance</p>
+                </div>
+                <div class="two-column small-text">
+                    <div>
+                        <h4>Relationship Format (Phase 4)</h4>
+                        <ul>
+                            <li>✅ Best compression: 21x</li>
+                            <li>✅ Natural trace reconstruction</li>
+                            <li>❌ Must load full trace</li>
+                            <li>❌ Query all traces for one service</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>Columnar Format (Phase 5)</h4>
+                        <ul>
+                            <li>✅ Fast queries: "all spans for service X"</li>
+                            <li>✅ Columnar analytics</li>
+                            <li>✅ Still 25x compression</li>
+                            <li>⚠️ More complex reconstruction</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="small-text highlight" style="text-align: center; margin-top: 20px;">
+                    Different formats for different use cases!
+                </p>
+            </section>
+
+            <section>
+                <h2>Traces: Key Takeaways</h2>
+                <div class="box success">
+                    <h4>✅ Structure Exploitation Wins</h4>
+                    <ul class="small-text">
+                        <li>Service topology: 12 services serve 267 spans (22x reuse)</li>
+                        <li>Parent-child relationships: Sequential IDs (36x compression)</li>
+                        <li>Timestamp locality: Delta from root (2-4x compression)</li>
+                        <li>Combined: 21-25x total compression</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>🎯 The Progression</h4>
+                    <p class="small-text">
+                        <span class="highlight">1x</span> (NDJSON) → 
+                        <span class="highlight">12x</span> (+ zstd) → 
+                        <span class="highlight">21x</span> (+ relationships) → 
+                        <span class="highlight">25x</span> (+ columnar)
+                    </p>
+                </div>
+                <div class="box warning" style="margin-top: 10px;">
+                    <h4>📊 Format Choice Matters</h4>
+                    <p class="small-text">Relationship format for storage, Columnar format for analytics</p>
+                </div>
+            </section>
+
+            <!-- PART 5: REALITY CHECK -->
+            <section class="center">
+                <h1>Part 5: Reality Check</h1>
+                <p>⚖️ Trade-offs & Practical Considerations</p>
+            </section>
+
+            <section>
+                <h2>⚠️ The Compression Trilemma</h2>
+                <div class="box danger">
+                    <h4>You Can't Optimize Everything!</h4>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 20px;">
+                    <div class="box">
+                        <h4>💾 Storage Size</h4>
+                        <p class="small-text">Minimize disk usage</p>
+                        <p class="success small-text">✅ Focus of this project</p>
+                    </div>
+                    <div class="box">
+                        <h4>⚡ Ingest Speed</h4>
+                        <p class="small-text">Fast data writing</p>
+                        <p class="warning small-text">⚠️ CPU cost per write</p>
+                    </div>
+                    <div class="box">
+                        <h4>🔍 Query Speed</h4>
+                        <p class="small-text">Fast data reading</p>
+                        <p class="warning small-text">⚠️ Decompression overhead</p>
+                    </div>
+                </div>
+                <p class="highlight" style="text-align: center; margin-top: 20px;">
+                    Pick two. You can't have all three optimized.
+                </p>
+            </section>
+
+            <section>
+                <h2>💰 Real-World Trade-offs</h2>
+                <table style="font-size: 0.6em;">
+                    <thead>
+                        <tr>
+                            <th>Technique</th>
+                            <th>Compression</th>
+                            <th>Ingest CPU</th>
+                            <th>Query CPU</th>
+                            <th>Production?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>JSON (baseline)</td>
+                            <td class="danger">1x</td>
+                            <td class="success">Low</td>
+                            <td class="success">Low</td>
+                            <td class="danger">❌ Too big</td>
+                        </tr>
+                        <tr>
+                            <td>CBOR + zstd L6</td>
+                            <td class="warning">15x</td>
+                            <td class="success">Medium</td>
+                            <td class="success">Medium</td>
+                            <td class="success">✅ Good balance</td>
+                        </tr>
+                        <tr>
+                            <td>Columnar + zstd L22</td>
+                            <td class="success">40x</td>
+                            <td class="warning">High</td>
+                            <td class="warning">High</td>
+                            <td class="warning">⚠️ Archives only</td>
+                        </tr>
+                        <tr>
+                            <td>Pattern-aware + zstd L22</td>
+                            <td class="success">80x</td>
+                            <td class="danger">Very High</td>
+                            <td class="danger">Very High</td>
+                            <td class="danger">❌ Too expensive</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="small-text" style="margin-top: 20px;">
+                    <strong>Key insight:</strong> Production systems often use <span class="highlight">tiered storage</span>:
+                </p>
+                <ul class="small-text">
+                    <li>Hot data (last 24h): Fast format, moderate compression</li>
+                    <li>Warm data (7-30 days): Balanced format, good compression</li>
+                    <li>Cold data (archive): Maximum compression, rare access</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>🏭 Production System Examples</h2>
+                <div class="box">
+                    <h4>Prometheus (Metrics)</h4>
+                    <ul class="small-text">
+                        <li>Uses XOR compression (Gorilla algorithm) + delta encoding</li>
+                        <li>Compression: ~10-20x (balanced approach)</li>
+                        <li>Query speed: Milliseconds for recent data</li>
+                        <li>Trade-off: Moderate compression for fast queries</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>YScope CLP (Logs)</h4>
+                    <ul class="small-text">
+                        <li>Production CLP implementation with significant compression gains</li>
+                        <li>Searchable without full decompression!</li>
+                        <li>Trade-off: Complex ingest, but worth it at scale</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>Jaeger/Tempo (Traces)</h4>
+                    <ul class="small-text">
+                        <li>Use Parquet columnar format for storage</li>
+                        <li>Compression: 10-30x depending on data</li>
+                        <li>Trade-off: Optimized for querying by service/operation</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>📊 When to Use Each Technique</h2>
+                <table style="font-size: 0.55em;">
+                    <thead>
+                        <tr>
+                            <th>Use Case</th>
+                            <th>Recommended Approach</th>
+                            <th>Why</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Hot data (recent)</td>
+                            <td>Binary + zstd L6</td>
+                            <td>Fast ingest/query, decent compression</td>
+                        </tr>
+                        <tr>
+                            <td>Warm data (weeks)</td>
+                            <td>Columnar + zstd L15</td>
+                            <td>Better compression, still queryable</td>
+                        </tr>
+                        <tr>
+                            <td>Cold data (archive)</td>
+                            <td>Pattern-aware + zstd L22</td>
+                            <td>Maximum compression, rare access OK</td>
+                        </tr>
+                        <tr>
+                            <td>Compliance/audit</td>
+                            <td>Logs: CLP format</td>
+                            <td>Searchable without decompression</td>
+                        </tr>
+                        <tr>
+                            <td>Real-time analytics</td>
+                            <td>Columnar (minimal compression)</td>
+                            <td>Query speed over compression</td>
+                        </tr>
+                        <tr>
+                            <td>Data lake / S3</td>
+                            <td>Parquet + Snappy</td>
+                            <td>Industry standard, tool compatibility</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section>
+                <h2>🎓 Key Lessons Learned</h2>
+                <div class="box success">
+                    <h4>✅ Domain Knowledge is Powerful</h4>
+                    <p class="small-text">Understanding data characteristics enables <strong>order of magnitude</strong> better compression than generic algorithms alone</p>
+                </div>
+                <div class="box">
+                    <h4>📐 The Compression Hierarchy</h4>
+                    <ol class="small-text">
+                        <li><strong>Binary encoding</strong> - Easy win, 1.3x</li>
+                        <li><strong>Generic compression</strong> - zstd gives 10-30x baseline</li>
+                        <li><strong>Structure optimization</strong> - Deduplication, columnar: +2-3x</li>
+                        <li><strong>Domain-specific algorithms</strong> - Pattern-aware: +2-4x</li>
+                    </ol>
+                </div>
+                <div class="box warning" style="margin-top: 10px;">
+                    <h4>⚠️ No Free Lunch</h4>
+                    <p class="small-text">Higher compression = Higher CPU cost. Choose based on your <strong>access patterns</strong> and <strong>scale</strong>.</p>
+                </div>
+            </section>
+
+            <section>
+                <h2>🔬 Try It Yourself!</h2>
+                <div class="box">
+                    <h4>The squeezed-signals Repository</h4>
+                    <p class="small-text">github.com/flash1293/squeezed-signals</p>
+                </div>
+                <pre><code class="language-bash"># Clone and set up
+git clone https://github.com/flash1293/squeezed-signals.git
+cd squeezed-signals
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Try metrics compression
+cd metrics
+python main.py --size small
+
+# Try logs compression  
+cd ../logs
+python main.py --size small
+
+# Try traces compression
+cd ../traces
+python main.py --size small
+</code></pre>
+            </section>
+
+            <!-- CONCLUSION -->
+            <section class="center">
+                <h1>Summary</h1>
+                <div class="box" style="margin-top: 40px;">
+                    <h3>Compression Achievements</h3>
+                    <ul style="font-size: 0.9em;">
+                        <li>📊 <strong>Metrics:</strong> 84 MB → 1 MB (79.7x) via pattern-aware algorithms</li>
+                        <li>📝 <strong>Logs:</strong> 5 MB → 99 KB (50.8x) via template extraction (CLP)</li>
+                        <li>🔍 <strong>Traces:</strong> 134 KB → 5.4 KB (25x) via relationship encoding</li>
+                    </ul>
+                </div>
+                <div class="box success" style="margin-top: 30px;">
+                    <h4>The Universal Principle</h4>
+                    <p><strong>Understand your data → Apply specialized techniques → Compound with general compression</strong></p>
+                </div>
+            </section>
+
+            <section class="center">
+                <h1>Questions?</h1>
+                <p style="margin-top: 50px;">🗜️ github.com/flash1293/squeezed-signals</p>
+                <p style="margin-top: 30px;" class="small-text">Press <kbd>?</kbd> for keyboard shortcuts</p>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/highlight.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            controls: true,
+            progress: true,
+            center: false,
+            transition: 'slide',
+            width: 1200,
+            height: 720,
+            margin: 0.04,
+            plugins: [ RevealHighlight, RevealNotes ]
+        });
+    </script>
+</body>
+</html>

@@ -185,7 +185,7 @@ def compress_timestamps_advanced(timestamps: List[int]) -> Dict:
         "deltas": run_length_encode(deltas)
     }
 
-def compress_values_advanced(values: List[float], series_id: str) -> Dict:
+def compress_values_advanced(values: List[float], series_id: str, report_details: bool = False) -> Dict:
     """Enhanced value compression with pattern-specific algorithms."""
     if not values:
         return {"method": "empty"}
@@ -195,12 +195,29 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
     
     pattern = detect_advanced_patterns(values)
     
+    if report_details:
+        print(f"\n  📊 Series Analysis:")
+        print(f"     Pattern detected: {pattern}")
+        if len(values) > 5:
+            sample_str = f"[{values[0]:.2f}, {values[1]:.2f}, {values[2]:.2f}, {values[3]:.2f}, {values[4]:.2f}, ..., {values[-1]:.2f}]"
+        else:
+            sample_str = f"{[round(v, 2) for v in values]}"
+        print(f"     Sample values: {sample_str}")
+        print(f"     Value range: {min(values):.2f} to {max(values):.2f}")
+        print(f"     Total points: {len(values)}")
+    
     if pattern == "constant":
-        return {
+        result = {
             "method": "constant",
             "value": values[0],
             "count": len(values)
         }
+        if report_details:
+            # Estimate size: just storing one value + count
+            estimated_size = 16  # double + int
+            original_size = len(values) * 8
+            print(f"     → Constant compression: {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+        return result
     
     elif pattern == "near_constant":
         # Store base value + small deviations
@@ -211,12 +228,19 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
         precision = max(1e-6, max(abs(d) for d in deviations) / 1000)
         quantized_deviations = [round(d / precision) for d in deviations]
         
-        return {
+        compressed_deviations = compress_integer_list(quantized_deviations)
+        result = {
             "method": "near_constant",
             "base": base_value,
             "precision": precision,
-            "deviations": compress_integer_list(quantized_deviations)
+            "deviations": compressed_deviations
         }
+        if report_details:
+            estimated_size = 24 + len(compressed_deviations)
+            original_size = len(values) * 8
+            print(f"     → Near-constant compression: {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+            print(f"        Base: {base_value:.6f}, Max deviation: {max(abs(d) for d in deviations):.6f}")
+        return result
     
     elif pattern == "power_of_2":
         # Store as exponents
@@ -228,11 +252,19 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
             else:
                 exponents.append(-1)  # Special marker for zero/negative
         
-        return {
+        compressed_exponents = compress_integer_list(exponents)
+        fallback = [v for v in values if v <= 0 or v != 2 ** int(math.log2(v))]
+        result = {
             "method": "power_of_2",
-            "exponents": compress_integer_list(exponents),
-            "fallback_values": [v for v in values if v <= 0 or v != 2 ** int(math.log2(v))]
+            "exponents": compressed_exponents,
+            "fallback_values": fallback
         }
+        if report_details:
+            estimated_size = len(compressed_exponents) + len(fallback) * 8
+            original_size = len(values) * 8
+            print(f"     → Power-of-2 compression: {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+            print(f"        Fallback values: {len(fallback)}")
+        return result
     
     elif pattern == "mostly_integers":
         # Split into integer and fractional parts
@@ -242,12 +274,19 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
         # Check if fractional parts are mostly zero
         non_zero_fractions = [(i, f) for i, f in enumerate(fractional_parts) if abs(f) > 1e-10]
         
-        return {
+        compressed_integers = compress_integer_list(integer_parts)
+        result = {
             "method": "mostly_integers",
-            "integers": compress_integer_list(integer_parts),
+            "integers": compressed_integers,
             "fractional_indices": [i for i, f in non_zero_fractions],
             "fractional_values": [f for i, f in non_zero_fractions]
         }
+        if report_details:
+            estimated_size = len(compressed_integers) + len(non_zero_fractions) * 12
+            original_size = len(values) * 8
+            print(f"     → Mostly-integers compression: {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+            print(f"        Non-zero fractions: {len(non_zero_fractions)}/{len(values)}")
+        return result
     
     elif pattern == "exponential":
         # Store first value + ratios
@@ -258,12 +297,18 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
         # Store deviations from average ratio
         ratio_deviations = [r - avg_ratio for r in ratios]
         
-        return {
+        result = {
             "method": "exponential",
             "base": base_value,
             "avg_ratio": avg_ratio,
             "ratio_deviations": ratio_deviations
         }
+        if report_details:
+            estimated_size = 24 + len(ratio_deviations) * 8
+            original_size = len(values) * 8
+            print(f"     → Exponential compression: {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+            print(f"        Avg ratio: {avg_ratio:.6f}")
+        return result
     
     elif pattern.startswith("periodic_"):
         period = int(pattern.split("_")[1])
@@ -276,21 +321,32 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
             deviation = values[i] - base_pattern[pattern_index]
             deviations.append(deviation)
         
-        return {
+        result = {
             "method": "periodic",
             "period": period,
             "base_pattern": base_pattern,
             "deviations": deviations
         }
+        if report_details:
+            estimated_size = period * 8 + len(deviations) * 8
+            original_size = len(values) * 8
+            print(f"     → Periodic compression (period={period}): {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+        return result
     
     elif pattern == "quantized" or pattern == "quantized_stepped":
         # Dictionary encoding for quantized values
         compressed_data, dictionary = compress_with_dictionary(values)
-        return {
+        result = {
             "method": "dictionary",
             "data": compressed_data,
             "dictionary": dictionary
         }
+        if report_details:
+            original_size = len(values) * 8
+            compressed_size = len(compressed_data)
+            print(f"     → Dictionary compression: {compressed_size} bytes (vs {original_size} bytes, {original_size/compressed_size:.1f}x)")
+            print(f"        Dictionary size: {len(dictionary['values'])} unique values")
+        return result
     
     elif pattern == "sparse":
         # Enhanced sparse encoding with delta-compressed indices
@@ -300,20 +356,32 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
             if len(non_zero_data) > 1:
                 indices = [item[0] for item in non_zero_data]
                 index_deltas = [indices[i] - indices[i-1] for i in range(1, len(indices))]
+                compressed_deltas = compress_integer_list(index_deltas)
                 
-                return {
+                result = {
                     "method": "sparse_optimized",
                     "length": len(values),
                     "first_index": indices[0],
-                    "index_deltas": compress_integer_list(index_deltas),
+                    "index_deltas": compressed_deltas,
                     "values": [item[1] for item in non_zero_data]
                 }
+                if report_details:
+                    estimated_size = 16 + len(compressed_deltas) + len(non_zero_data) * 8
+                    original_size = len(values) * 8
+                    print(f"     → Sparse compression: {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+                    print(f"        Non-zero values: {len(non_zero_data)}/{len(values)} ({len(non_zero_data)/len(values)*100:.1f}%)")
+                return result
             else:
-                return {
+                result = {
                     "method": "sparse",
                     "length": len(values),
                     "non_zero": non_zero_data
                 }
+                if report_details:
+                    estimated_size = 24
+                    original_size = len(values) * 8
+                    print(f"     → Sparse compression (single value): {estimated_size} bytes (vs {original_size} bytes, {original_size/estimated_size:.1f}x)")
+                return result
         else:
             # Fall back to other methods
             pass
@@ -338,18 +406,39 @@ def compress_values_advanced(values: List[float], series_id: str) -> Dict:
     delta_result = _compress_values_delta_enhanced(values)
     
     # Choose the better compression
+    original_size = len(values) * 8
+    
     if xor_result and delta_result:
-        if xor_result["size"] < len(delta_result.get("data", b"")):
-            print(f"    Series {series_id}: XOR compression - {xor_result['size']} bytes ({pattern})")
+        xor_size = xor_result["size"]
+        delta_size = len(delta_result.get("data", b""))
+        
+        if xor_size < delta_size:
+            if report_details:
+                print(f"     → XOR compression: {xor_size} bytes (vs {original_size} bytes, {original_size/xor_size:.1f}x)")
+                print(f"        Chosen over delta ({delta_size} bytes)")
+            else:
+                print(f"    Series {series_id}: XOR compression - {xor_size} bytes ({pattern})")
             return xor_result
         else:
-            print(f"    Series {series_id}: Enhanced delta compression - {len(delta_result.get('data', b''))} bytes ({pattern})")
+            if report_details:
+                print(f"     → Delta compression: {delta_size} bytes (vs {original_size} bytes, {original_size/delta_size:.1f}x)")
+                print(f"        Chosen over XOR ({xor_size} bytes)")
+            else:
+                print(f"    Series {series_id}: Enhanced delta compression - {delta_size} bytes ({pattern})")
             return delta_result
     elif xor_result:
-        print(f"    Series {series_id}: XOR compression - {xor_result['size']} bytes ({pattern})")
+        xor_size = xor_result["size"]
+        if report_details:
+            print(f"     → XOR compression: {xor_size} bytes (vs {original_size} bytes, {original_size/xor_size:.1f}x)")
+        else:
+            print(f"    Series {series_id}: XOR compression - {xor_size} bytes ({pattern})")
         return xor_result
     else:
-        print(f"    Series {series_id}: Enhanced delta compression ({pattern})")
+        if report_details:
+            delta_size = len(delta_result.get("data", b"")) if delta_result else original_size
+            print(f"     → Enhanced delta compression: {delta_size} bytes (vs {original_size} bytes, {original_size/max(delta_size, 1):.1f}x)")
+        else:
+            print(f"    Series {series_id}: Enhanced delta compression ({pattern})")
         return delta_result or {"method": "uncompressed", "values": values}
 
 def _compress_values_delta_enhanced(values: List[float]) -> Dict:
@@ -454,7 +543,22 @@ def compress_columnar_data_enhanced(columnar_data: Dict[str, Any]) -> Dict[str, 
     total_original_bytes = 0
     total_compressed_bytes = 0
     
-    for series_id, data in series_data.items():
+    # Track compression method statistics
+    method_stats = defaultdict(lambda: {"count": 0, "original_bytes": 0, "compressed_bytes": 0})
+    timestamp_method_stats = defaultdict(int)
+    
+    # Track per-series statistics
+    series_stats = []
+    
+    print(f"\n{'='*120}")
+    print(f"Compressing {len(series_data)} time series...")
+    print(f"{'='*120}")
+    
+    # Print table header
+    print(f"\n{'#':<4} {'Metric':<30} {'Pts':<5} {'Mean':<10} {'Range':<12} {'Uniq':<5} {'Var':<10} {'Pattern':<15} {'Method':<15} {'Ratio':<7} {'Samples'}")
+    print(f"{'-'*4} {'-'*30} {'-'*5} {'-'*10} {'-'*12} {'-'*5} {'-'*10} {'-'*15} {'-'*15} {'-'*7} {'-'*40}")
+    
+    for idx, (series_id, data) in enumerate(series_data.items()):
         timestamps = data["timestamps"]
         values = data["values"]
         
@@ -462,15 +566,113 @@ def compress_columnar_data_enhanced(columnar_data: Dict[str, Any]) -> Dict[str, 
         original_bytes = len(timestamps) * 8 + len(values) * 8
         total_original_bytes += original_bytes
         
-        # Compress with enhanced algorithms
+        # Get series metadata for better reporting
+        metadata = series_metadata.get(series_id, {})
+        metric_name = metadata.get("name", "unknown")
+        labels_str = ", ".join(f"{k}={v}" for k, v in metadata.get("labels", {}).items())
+        
+        # Compress timestamps
         compressed_timestamps = compress_timestamps_advanced(timestamps)
-        compressed_values = compress_values_advanced(values, series_id)
+        timestamp_method = compressed_timestamps.get("method", "unknown")
+        timestamp_method_stats[timestamp_method] += 1
+        
+        # Compress values (without detailed reporting during compression)
+        compressed_values = compress_values_advanced(values, series_id, report_details=False)
         
         compressed_series_data[series_id] = {
             "timestamps": compressed_timestamps,
             "values": compressed_values,
             "original_length": len(timestamps)
         }
+        
+        # Track method statistics
+        value_method = compressed_values.get("method", "unknown")
+        pattern = detect_advanced_patterns(values)
+        
+        # Estimate compressed size for this series
+        ts_size = 16  # Base estimate for timestamps
+        if timestamp_method == "regular":
+            ts_size = 16
+        elif timestamp_method == "dual_interval":
+            pattern_size = len(compressed_timestamps.get("pattern", []))
+            ts_size = 32 + pattern_size
+        elif timestamp_method == "delta_rle":
+            ts_size = 16 + len(compressed_timestamps.get("deltas", []))
+        
+        val_size = 0
+        if value_method == "xor":
+            val_size = compressed_values.get("size", 0)
+        elif value_method in ["delta", "delta_rle"]:
+            val_size = len(compressed_values.get("data", b""))
+        elif value_method == "dictionary":
+            val_size = len(compressed_values.get("data", b""))
+        elif value_method == "constant":
+            val_size = 16
+        elif value_method == "sparse_optimized":
+            val_size = 16 + len(compressed_values.get("index_deltas", b"")) + len(compressed_values.get("values", [])) * 8
+        else:
+            # Rough estimate for other methods
+            val_size = original_bytes // 4
+        
+        estimated_compressed = ts_size + val_size
+        compression_ratio = original_bytes / max(estimated_compressed, 1)
+        
+        method_stats[value_method]["count"] += 1
+        method_stats[value_method]["original_bytes"] += original_bytes
+        method_stats[value_method]["compressed_bytes"] += estimated_compressed
+        
+        series_stats.append({
+            "series_id": series_id,
+            "metric_name": metric_name + labels_str and f" ({labels_str})" or "",
+            "labels_str": labels_str,
+            "points": len(timestamps),
+            "original_bytes": original_bytes,
+            "compressed_bytes": estimated_compressed,
+            "compression_ratio": compression_ratio,
+            "timestamp_method": timestamp_method,
+            "value_method": value_method
+        })
+        
+        # Calculate statistics
+        mean_val = sum(values) / len(values)
+        min_val = min(values)
+        max_val = max(values)
+        value_range = max_val - min_val
+        unique_count = len(set(values))
+        
+        # Calculate variance
+        variance = sum((v - mean_val) ** 2 for v in values) / len(values)
+        
+        # Show sample values in table format
+        if len(values) > 3:
+            sample_str = f"[{values[0]:.1f}, {values[1]:.1f}, ..., {values[-1]:.1f}]"
+        else:
+            sample_str = f"{[round(v, 1) for v in values]}"
+        
+        # Format statistics for display
+        if abs(mean_val) < 1000 and abs(mean_val) > 0.01:
+            mean_str = f"{mean_val:.2f}"
+        elif abs(mean_val) < 0.01:
+            mean_str = f"{mean_val:.2e}"
+        else:
+            mean_str = f"{mean_val:.2e}"
+        
+        if value_range < 1000 and value_range > 0.01:
+            range_str = f"{min_val:.1f}-{max_val:.1f}"
+        elif value_range == 0:
+            range_str = f"const"
+        else:
+            range_str = f"{value_range:.2e}"
+        
+        if variance < 1000 and variance > 0.01:
+            var_str = f"{variance:.2f}"
+        elif variance < 0.01:
+            var_str = f"{variance:.2e}"
+        else:
+            var_str = f"{variance:.2e}"
+        
+        # Print table row with statistics
+        print(f"{idx+1:<4} {metric_name[:30]:30s} {len(values):<5} {mean_str:<10s} {range_str:<12s} {unique_count:<5} {var_str:<10s} {pattern[:15]:15s} {value_method[:15]:15s} {compression_ratio:<7.2f} {sample_str[:40]}")
     
     # Estimate compressed size
     compressed_msgpack = msgpack.packb({
@@ -481,10 +683,58 @@ def compress_columnar_data_enhanced(columnar_data: Dict[str, Any]) -> Dict[str, 
     total_compressed_bytes = len(compressed_msgpack)
     compression_ratio = total_original_bytes / max(total_compressed_bytes, 1)
     
-    print(f"\n📊 Enhanced Compression Statistics:")
-    print(f"  Original data size: {total_original_bytes:,} bytes")
-    print(f"  Enhanced compressed size: {total_compressed_bytes:,} bytes") 
-    print(f"  Compression ratio: {compression_ratio:.2f}x")
+    # Print comprehensive statistics
+    print(f"\n{'='*80}")
+    print(f"📊 COMPRESSION SUMMARY")
+    print(f"{'='*80}")
+    
+    print(f"\n📈 Overall Statistics:")
+    print(f"  Total series: {len(series_data)}")
+    print(f"  Total data points: {sum(s['points'] for s in series_stats):,}")
+    print(f"  Original size: {total_original_bytes:,} bytes ({total_original_bytes/1024/1024:.2f} MB)")
+    print(f"  Compressed size: {total_compressed_bytes:,} bytes ({total_compressed_bytes/1024/1024:.2f} MB)")
+    print(f"  Overall compression ratio: {compression_ratio:.2f}x")
+    print(f"  Avg bytes per series: {total_compressed_bytes/len(series_data):.1f}")
+    print(f"  Avg bytes per data point: {total_compressed_bytes/sum(s['points'] for s in series_stats):.2f}")
+    
+    print(f"\n🔧 Compression Methods Used (Values):")
+    sorted_methods = sorted(method_stats.items(), key=lambda x: x[1]["count"], reverse=True)
+    for method, stats in sorted_methods:
+        count = stats["count"]
+        orig = stats["original_bytes"]
+        comp = stats["compressed_bytes"]
+        ratio = orig / max(comp, 1)
+        pct = (count / len(series_data)) * 100
+        print(f"  {method:20s}: {count:4d} series ({pct:5.1f}%) | {ratio:6.2f}x compression | {comp:,} bytes")
+    
+    print(f"\n⏱️  Timestamp Compression Methods:")
+    sorted_ts_methods = sorted(timestamp_method_stats.items(), key=lambda x: x[1], reverse=True)
+    for method, count in sorted_ts_methods:
+        pct = (count / len(series_data)) * 100
+        print(f"  {method:20s}: {count:4d} series ({pct:5.1f}%)")
+    
+    print(f"\n🏆 Best Compressed Series (by ratio):")
+    best_series = sorted(series_stats, key=lambda x: x["compression_ratio"], reverse=True)[:5]
+    for i, s in enumerate(best_series, 1):
+        print(f"  {i}. {s['metric_name']:30s} | {s['compression_ratio']:6.1f}x | {s['value_method']}")
+    
+    print(f"\n📉 Worst Compressed Series (by ratio):")
+    worst_series = sorted(series_stats, key=lambda x: x["compression_ratio"])[:5]
+    for i, s in enumerate(worst_series, 1):
+        print(f"  {i}. {s['metric_name']:30s} | {s['compression_ratio']:6.1f}x | {s['value_method']}")
+    
+    print(f"\n💾 Space Efficiency by Series Size:")
+    # Group by size buckets
+    size_buckets = {
+        "small (<100 pts)": [s for s in series_stats if s["points"] < 100],
+        "medium (100-1000 pts)": [s for s in series_stats if 100 <= s["points"] < 1000],
+        "large (1000+ pts)": [s for s in series_stats if s["points"] >= 1000]
+    }
+    for bucket_name, bucket_series in size_buckets.items():
+        if bucket_series:
+            avg_ratio = sum(s["compression_ratio"] for s in bucket_series) / len(bucket_series)
+            avg_bytes_per_pt = sum(s["compressed_bytes"] for s in bucket_series) / sum(s["points"] for s in bucket_series)
+            print(f"  {bucket_name:25s}: {len(bucket_series):4d} series | {avg_ratio:.2f}x avg | {avg_bytes_per_pt:.2f} bytes/pt")
     
     return {
         "metadata": compressed_metadata,
@@ -493,7 +743,9 @@ def compress_columnar_data_enhanced(columnar_data: Dict[str, Any]) -> Dict[str, 
             "algorithm": "enhanced_pattern_aware_maximum",
             "original_bytes": total_original_bytes,
             "compressed_bytes": total_compressed_bytes,
-            "ratio": compression_ratio
+            "ratio": compression_ratio,
+            "method_stats": dict(method_stats),
+            "series_stats": series_stats
         }
     }
 
