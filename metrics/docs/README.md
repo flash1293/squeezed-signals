@@ -4,7 +4,7 @@ A comprehensive demonstration of how time-series metrics storage formats evolve 
 
 ## Documentation
 
-- [Phase 0: Data generation](./data-generation-deep-dive.md)
+- [Phase 0: Data generation](./phase0-data-generation-deep-dive.md)
 - [Phase 1: NDJSON Characteristics](./phase1-ndjson-characteristics.md) - Baseline format analysis
 - [Phase 2: CBOR Characteristics](./phase2-cbor-characteristics.md) - Binary serialization benefits
 - [Phase 3: CBOR + zstd Characteristics](./phase3-cbor-zstd-characteristics.md) - General-purpose compression
@@ -16,10 +16,13 @@ A comprehensive demonstration of how time-series metrics storage formats evolve 
 ## Quick Start
 
 ```bash
-# Set up the environment
+# Set up the environment (from project root)
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+
+# Navigate to metrics directory
+cd metrics/
 
 # Run the complete demonstration with synthetic data (default)
 python main.py --size small

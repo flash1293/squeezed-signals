@@ -15,6 +15,12 @@ Progressive compression techniques demonstrating how understanding data structur
 ## Running the Pipeline
 
 ```bash
+# Set up the environment (from project root)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Navigate to logs directory
 cd logs
 
 # Run individual phases

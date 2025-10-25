@@ -14,6 +14,12 @@ Progressive compression techniques for distributed tracing data. Achieves **21-2
 ## Running the Pipeline
 
 ```bash
+# Set up the environment (from project root)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Navigate to traces directory
 cd traces
 
 # Run all phases

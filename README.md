@@ -67,15 +67,21 @@ Each signal type presents unique storage optimization opportunities and challeng
 
 ## 🚀 Getting Started
 
-Each signal type is a complete, self-contained demonstration that can be run independently:
+All three signal types share a common set of dependencies. Set up the environment once at the project root:
+
+```bash
+# Set up the virtual environment (one-time setup)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Once the environment is set up, you can run any of the signal demonstrations:
 
 ### Metrics Storage Evolution
 
 ```bash
 cd metrics/
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
 
 # Run the complete metrics evolution pipeline
 python main.py --size small
@@ -88,9 +94,6 @@ DATA_GENERATOR=real python main.py --size big
 
 ```bash
 cd traces/
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
 
 # Run the complete traces evolution pipeline
 python main.py --size small
@@ -104,9 +107,6 @@ python main.py --size big     # 10,000 traces
 
 ```bash
 cd logs/
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
 
 # Run the complete logs evolution pipeline
 python main.py --size small

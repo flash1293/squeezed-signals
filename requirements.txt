@@ -1,26 +1,17 @@
 # Squeezed Signals - Multi-Signal Observability Data Storage Evolution
-# Core dependencies for metrics, traces, and logs optimization
+# Consolidated dependencies for metrics, traces, and logs
 
-# Time-series metrics storage optimization
+# Common dependencies
 requests>=2.31.0
 numpy>=1.24.0
 zstandard>=0.22.0
 msgpack>=1.0.7
 matplotlib>=3.7.0
 
-# Distributed tracing optimization (planned)
-opentelemetry-api>=1.20.0
-protobuf>=4.24.0
-
-# Log analysis and compression (planned)
-regex>=2023.8.0
-jsonschema>=4.19.0
+# Traces-specific
+cbor2>=5.4.0
+pandas
 
 # Development and testing
 pytest>=7.4.0
 black>=23.0.0
-mypy>=1.5.0
-
-# Optional: Performance profiling
-cProfile>=3.13.0
-memory-profiler>=0.61.0
