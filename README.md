@@ -17,9 +17,9 @@ config:
       backgroundColor: "transparent"
 ---
 xychart-beta
-  x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Binary Table", "Columnar", "Enhanced", "Downsampled"]
-  y-axis "Compression Ratio" 0 --> 90
-  bar [1, 1.3, 21.1, 29.4, 40.2, 79.7, 90.4]
+  x-axis ["NDJSON", "CBOR", "CBOR+zstd", "Binary Table", "Columnar", "Enhanced"]
+  y-axis "Compression Ratio" 0 --> 80
+  bar [1, 1.3, 21.1, 29.4, 40.2, 79.7]
 ```
 
 ### Traces Compression
