@@ -133,7 +133,7 @@ def check_dependencies():
 def main():
     """Main pipeline runner"""
     parser = argparse.ArgumentParser(description='Run distributed traces storage evolution pipeline')
-    parser.add_argument('--size', choices=['small', 'medium', 'big'], default='small',
+    parser.add_argument('--size', choices=['small', 'medium', 'big', 'huge'], default='small',
                        help='Dataset size to generate/process')
     parser.add_argument('--phase', type=str, help='Run specific phase (e.g., "01" for phase 1)')
     parser.add_argument('--skip-deps', action='store_true', help='Skip dependency check')

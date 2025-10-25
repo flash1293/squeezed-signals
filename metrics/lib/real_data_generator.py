@@ -88,30 +88,49 @@ def parse_csv_file(csv_path: Path) -> pd.DataFrame:
         print(f"⚠️  Failed to parse {csv_path}: {e}")
         return None
 
-def extract_metrics_from_dataframe(df: pd.DataFrame, csv_path: Path) -> List[Dict[str, Any]]:
-    """Extract metric data points from a parsed DataFrame."""
+def extract_metrics_from_dataframe(df: pd.DataFrame, csv_path: Path, sample_size: int = None) -> List[Dict[str, Any]]:
+    """Extract metric data points from a parsed DataFrame.
+    
+    Args:
+        df: Parsed DataFrame with metric data
+        csv_path: Path to the CSV file (used for generating labels)
+        sample_size: If provided, randomly sample this many rows from the DataFrame first
+    """
     if df is None or len(df) == 0:
         return []
+    
+    # Sample the dataframe first if requested (much faster than processing all rows)
+    if sample_size and len(df) > sample_size:
+        df = df.sample(n=sample_size, random_state=42)
+        df = df.sort_values('unix_timestamp')  # Keep chronological order
     
     data_points = []
     
     # Generate labels from file path
     path_parts = csv_path.parts
-    host_name = "unknown"
-    environment = "prod"
     
-    # Try to extract meaningful labels from path
-    for part in path_parts:
-        if 'node' in part.lower() or 'server' in part.lower() or 'host' in part.lower():
-            host_name = part
-        elif 'test' in part.lower():
-            environment = "test"
-        elif 'dev' in part.lower():
-            environment = "dev"
+    # Extract host name from the CSV filename (e.g., "system-1" from "system-1.csv")
+    filename = csv_path.stem  # Gets filename without extension
+    if 'system' in filename.lower():
+        # For files like "system-1.csv", use "system-1" as host
+        host_name = filename
+    else:
+        # Fallback to extracting from path
+        host_name = "unknown"
+        for part in path_parts:
+            if 'node' in part.lower() or 'server' in part.lower() or 'host' in part.lower():
+                host_name = part
+                break
     
-    # Extract region from path or generate one
-    region_candidates = ["us-east-1", "eu-west-1", "ap-southeast-1", "us-west-2"]
-    region = random.choice(region_candidates)
+    # Determine environment - use prod/test/staging distribution
+    # Hash the filename to get consistent but distributed environments
+    filename_hash = hash(filename)
+    environment_options = ["prod", "prod", "prod", "test", "staging"]  # Weight towards prod
+    environment = environment_options[filename_hash % len(environment_options)]
+    
+    # Extract region - also use hash for consistent distribution across common regions
+    region_candidates = ["us-east-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-southeast-1", "ap-northeast-1"]
+    region = region_candidates[filename_hash % len(region_candidates)]
     
     # Process each numeric column as a separate metric
     for column in df.columns:
@@ -142,21 +161,15 @@ def extract_metrics_from_dataframe(df: pd.DataFrame, csv_path: Path) -> List[Dic
             if 'total' not in metric_name:
                 metric_name += '_total'
         
-        # Create data points for this metric
-        for _, row in df.iterrows():
-            if pd.isna(row[column]):
-                continue
-                
-            value = float(row[column])
-            
-            # Skip invalid values
-            if not np.isfinite(value):
-                continue
-            
+        # Create data points for this metric - use vectorized operations for speed
+        valid_mask = df[column].notna() & np.isfinite(df[column])
+        valid_df = df[valid_mask]
+        
+        for _, row in valid_df.iterrows():
             data_point = {
                 "timestamp": int(row['unix_timestamp']),
                 "metric_name": metric_name,
-                "value": value,
+                "value": float(row[column]),
                 "labels": {
                     "host": host_name,
                     "region": region,
@@ -186,13 +199,13 @@ def generate_real_metric_data(
     
     # Set target data point counts
     if dataset_size == "small":
-        target_points = 50000
+        target_points = 500000  # ~2-3k points per series across multiple hosts
         max_files = max_files or 10
     elif dataset_size == "big":
-        target_points = 500000
+        target_points = 5000000  # 5M points
         max_files = max_files or 50
     elif dataset_size == "huge":
-        target_points = 10000000  # 10M points for huge dataset
+        target_points = 50000000  # 50M points for huge dataset
         max_files = max_files or 200  # Process more files for huge dataset
     else:
         raise ValueError("dataset_size must be 'small', 'big', or 'huge'")
@@ -216,10 +229,13 @@ def generate_real_metric_data(
     all_data_points = []
     processed_files = 0
     
+    # Calculate target points per file to ensure we process multiple files
+    # Account for the fact that each row becomes multiple data points (one per metric)
+    # Assuming ~20-25 metrics per file
+    # Aim for ~10k points per series (10000 rows × 24 metrics = 240k points per file)
+    rows_per_file = max(10000, target_points // max_files // 20)
+    
     for csv_file in csv_files:
-        if len(all_data_points) >= target_points:
-            break
-            
         print(f"📁 Processing: {csv_file.relative_to(dataset_dir)}")
         
         # Parse CSV file
@@ -227,8 +243,8 @@ def generate_real_metric_data(
         if df is None:
             continue
         
-        # Extract metrics
-        file_data_points = extract_metrics_from_dataframe(df, csv_file)
+        # Extract metrics with sampling for efficiency
+        file_data_points = extract_metrics_from_dataframe(df, csv_file, sample_size=rows_per_file)
         
         if file_data_points:
             all_data_points.extend(file_data_points)
@@ -236,6 +252,11 @@ def generate_real_metric_data(
             print(f"  ✅ Extracted {len(file_data_points):,} data points")
         else:
             print(f"  ⚠️  No usable data points found")
+        
+        # Check if we have enough points
+        if len(all_data_points) >= target_points:
+            print(f"🎯 Reached target of {target_points:,} points")
+            break
     
     # Trim to target size if we have too many points
     if len(all_data_points) > target_points:

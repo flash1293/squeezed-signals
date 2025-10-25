@@ -352,7 +352,8 @@ def main():
     trace_counts = {
         'small': 100,
         'medium': 1000, 
-        'big': 10000
+        'big': 50000,
+        'huge': 100000
     }
     
     num_traces = trace_counts.get(size, 100)
