@@ -802,11 +802,6 @@ Template 6: "Connection closed" × 68,958 lines
                         </tr>
                     </tbody>
                 </table>
-                <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>OpenSSH dataset: 5,669 templates for 655,147 lines</strong></p>
-                    <p class="small-text">Average template reuse: 116x</p>
-                    <p class="small-text">From 72.7 MB → 1.77 MB (41.2x compression)</p>
-                </div>
             </section>
 
             <section>
@@ -1257,7 +1252,7 @@ span3: {duration: 31000000, status: 0, parent: 1}
                     <div class="box">
                         <h4>⚡ Optimize Ingest Speed</h4>
                         <p class="small-text"><strong>Write append-only, compress in background</strong></p>
-                        <p class="small-text" style="margin-top: 10px;"><em>Example:</em> Grafana Loki - buffers chunks in memory, flushes uncompressed, compresses async in object storage</p>
+                        <p class="small-text" style="margin-top: 10px;"><em>Example:</em> Grafana Loki - only lightweight general compression, no columnarization, no merging of chunks</p>
                         <p class="danger small-text" style="margin-top: 10px;"><strong>Cost:</strong> Higher storage, write amplification</p>
                     </div>
                     <div class="box">

@@ -222,9 +222,9 @@ def run_phase_5(size: str) -> bool:
             print(f"❌ Input file not found: {input_file}")
             return False
         
-        # Run processing with template_grouped strategy (efficient order encoding enabled by default)
+        # Run processing with hybrid_optimal strategy (efficient order encoding enabled by default)
         metadata = phase5_module.process_log_file(input_file, output_file, metadata_file, 
-                                                strategy='template_grouped', drop_order=False)
+                                                strategy='hybrid_optimal', drop_order=False)
         
         print(f"✅ Phase 5 completed successfully")
         print(f"   Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
@@ -260,7 +260,7 @@ def run_phase_6(size: str) -> bool:
         
         # Run processing
         metadata = phase6_module.process_log_file(input_file, output_file, metadata_file, 
-                                                strategy='template_grouped')
+                                                strategy='hybrid_optimal')
         
         print(f"✅ Phase 6 completed successfully")
         print(f"   Overall compression ratio: {metadata['overall_compression_ratio']:.2f}x")
