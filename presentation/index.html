@@ -84,20 +84,8 @@
             <section class="center">
                 <h1>🗜️ Squeezed Signals</h1>
                 <h3>The Evolution of Observability Data Storage</h3>
-                <p style="margin-top: 50px;">A deep dive into compressing metrics, logs, and traces</p>
+                <p style="margin-top: 50px;">A deep dive into compressing metrics and logs</p>
                 <p class="small-text" style="margin-top: 50px;">Press <kbd>Space</kbd> to navigate →</p>
-            </section>
-
-            <!-- Agenda -->
-            <section>
-                <h2>📋 Agenda (45 minutes)</h2>
-                <ol>
-                    <li><strong>Introduction</strong> - The observability data explosion (5 min)</li>
-                    <li><strong>Metrics</strong> - Time-series compression (12 min)</li>
-                    <li><strong>Logs</strong> - Structured text compression (12 min)</li>
-                    <li><strong>Traces</strong> - Distributed execution compression (10 min)</li>
-                    <li><strong>Reality Check</strong> - Trade-offs & practical considerations (6 min)</li>
-                </ol>
             </section>
 
             <!-- PART 1: INTRODUCTION -->
@@ -130,11 +118,6 @@
                             <li>"Request processed in 42ms"</li>
                         </ul>
                     </div>
-                </div>
-                <div style="margin-top: 20px;">
-                    <h4>🔍 Traces</h4>
-                    <p class="small-text">Distributed request flows across microservices</p>
-                    <p class="small-text">api-gateway → user-service → auth-service → database</p>
                 </div>
             </section>
 
@@ -186,15 +169,13 @@
                             <td>72.7 MB Plain Text</td>
                             <td>Repeated structure with variables</td>
                         </tr>
-                        <tr>
-                            <td>🔍 Traces</td>
-                            <td>71.1 MB NDJSON</td>
-                            <td>Parent-child relationships</td>
-                        </tr>
                     </tbody>
                 </table>
                 <p class="small-text" style="text-align: center; margin-top: 30px;">
                     Each uses different strategies tailored to data characteristics
+                </p>
+                <p class="small-text" style="text-align: center; margin-top: 20px;">
+                    <em>Note: Distributed traces compression covered in separate presentation (traces.html)</em>
                 </p>
             </section>
 
@@ -227,27 +208,16 @@
                 </ul>
             </section>
 
-            <section>
-                <h2>📈 Metrics: Progressive Journey</h2>
-                <div class="box">
-                    <h4>We'll explore 6 compression phases</h4>
-                    <p class="small-text">Each phase builds on the previous, demonstrating how domain knowledge compounds with general techniques</p>
-                </div>
-                <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>Starting point:</strong> 80.8 MB NDJSON</p>
-                    <p class="small-text">Each phase will reveal new techniques and improvements</p>
-                </div>
-            </section>
-
             <!-- Phase 1: NDJSON Baseline -->
             <section>
                 <h2>Phase 1: NDJSON Baseline (80.8 MB, 1.0x)</h2>
                 <div class="box">
                     <h4>Newline-Delimited JSON</h4>
                 </div>
-                <pre><code class="language-json">{"metric_name":"system.cpu.user","labels":{"host":"server-01","datacenter":"us-west-1"},"timestamp":1698000000,"value":72.34567}
-{"metric_name":"system.cpu.user","labels":{"host":"server-01","datacenter":"us-west-1"},"timestamp":1698000060,"value":72.34589}
-{"metric_name":"system.cpu.user","labels":{"host":"server-01","datacenter":"us-west-1"},"timestamp":1698000120,"value":72.34612}
+                <pre><code class="language-json">{"timestamp":1758824978,"metric_name":"sys_mem_total","value":8039006208.0,"labels":{"host":"system-14","region":"ap-southeast-1","environment":"staging"}}
+{"timestamp":1758824980,"metric_name":"load_5m","value":0.18,"labels":{"host":"system-8","region":"us-west-2","environment":"prod"}}
+{"timestamp":1758824980,"metric_name":"disk_io_time_bytes","value":0.0164000000004307,"labels":{"host":"system-8","region":"us-west-2","environment":"prod"}}
+{"timestamp":1758824980,"metric_name":"sys_mem_available","value":4934422528.0,"labels":{"host":"system-8","region":"us-west-2","environment":"prod"}}
 </code></pre>
                 <p class="small-text"><strong>Observations:</strong></p>
                 <ul class="small-text">
@@ -297,11 +267,8 @@ Pattern 1: "system.cpu.user" (appears 10k times)
 Pattern 2: "server-01" (appears 10k times)
   → Dictionary entry #2
 
-Pattern 3: Sequential timestamps
-  → Run-length encoding finds patterns
-
-Pattern 4: Label structure repetition
-  → Reference previous occurrences
+Pattern 3: Label structure repetition
+  → Reference previous occurrences (the same x bytes from y bytes ago)
 
 # Result: 63.9 MB → 3.8 MB (16.8x additional compression!)
 # Combined: 80.8 MB → 3.8 MB (21.3x total)</code></pre>
@@ -321,7 +288,7 @@ Pattern 4: Label structure repetition
 
 # After: Store strings once, use IDs
 strings: ["system.cpu.user", "server-01", "us-west-1"]
-rows: [{name_id: 0, label_ids: [1, 2]}, {name_id: 0, label_ids: [1, 2]}]
+rows: [{name_id: 0, label_ids: [1, 2], value: 72.34589}, {name_id: 0, label_ids: [1, 2], value: 72.34612}]
 # 17 bytes + (1000 × 3 bytes) = 3,017 bytes
 
 # Savings: 5.6x just from deduplication!</code></pre>
@@ -337,22 +304,22 @@ rows: [{name_id: 0, label_ids: [1, 2]}, {name_id: 0, label_ids: [1, 2]}]
                 <div class="two-column">
                     <div>
                         <h4>Row-oriented (Before)</h4>
-                        <pre><code class="language-python">row1: {ts: 1000, val: 72.3}
-row2: {ts: 1060, val: 72.4}
-row3: {ts: 1120, val: 72.5}</code></pre>
+                        <pre><code class="language-python">row1: {label_ids: [1, 2], ts: 1000, val: 72.3}
+row2: {label_ids: [1, 2], ts: 1060, val: 72.4}
+row3: {label_ids: [1, 2], ts: 1120, val: 72.5}</code></pre>
                         <p class="small-text">Mixed types, poor compression</p>
                     </div>
                     <div>
                         <h4>Column-oriented (After)</h4>
-                        <pre><code class="language-python">timestamps: [1000, 1060, 1120]
+                        <pre><code class="language-python">label_ids: [[1, 2], [1, 2], [1, 2]]
+timestamps: [1000, 1060, 1120]
 values:     [72.3, 72.4, 72.5]</code></pre>
                         <p class="small-text">Similar values together = better compression</p>
                     </div>
                 </div>
                 <p class="small-text" style="margin-top: 20px;"><strong>Why it works:</strong></p>
                 <ul class="small-text">
-                    <li>All timestamps together → delta encoding applies better</li>
-                    <li>All values together → XOR/floating-point compression more effective</li>
+                    <li>Similar values together → better back reference patterns</li>
                     <li>All string IDs together → run-length encoding finds patterns</li>
                 </ul>
                 <p class="small-text highlight">✅ 40.4x compression - columnar layout unlocks specialized algorithms</p>
@@ -367,42 +334,12 @@ values:     [72.3, 72.4, 72.5]</code></pre>
                 <p class="small-text">Detect patterns and apply specialized compression:</p>
                 <ul class="small-text">
                     <li><strong>Constant values:</strong> Store once + count (∞ compression!)</li>
-                    <li><strong>Near-constant:</strong> Base value + tiny deltas</li>
-                    <li><strong>Power-of-2:</strong> Store exponents instead of values</li>
-                    <li><strong>Mostly integers:</strong> Split integer/fractional parts</li>
-                    <li><strong>Periodic patterns:</strong> Template + deviations</li>
-                    <li><strong>Sparse data:</strong> Store only non-zero indices + values</li>
+                    <li><strong>Delta encoding:</strong> Base value + deltas to previous value</li>
+                    <li><strong>Many more:</strong>Near constant, Power-of-2, integer/fraction split, periodic templates, sparse storage</li> 
                 </ul>
                 <p class="highlight" style="margin-top: 20px; text-align: center;">
                     Result: 3.19 bytes per data point (vs 8 bytes original) - 79.7x compression!
                 </p>
-            </section>
-
-            <section>
-                <h2>Deep Dive: Near-Constant Encoding</h2>
-                <div class="box">
-                    <h4>Exploit Values That Rarely Change</h4>
-                    <p class="small-text">Many metrics are nearly constant with tiny deviations</p>
-                </div>
-                <pre><code class="language-python"># CPU usage values (varies slightly around 72%):
-values = [72.34567, 72.34589, 72.34612, 72.34599, 72.34601, ...]
-# Raw: 1000 values × 8 bytes = 8,000 bytes
-
-# Near-constant encoding:
-base_value = 72.34567
-deltas = [0.00000, 0.00022, 0.00045, 0.00032, 0.00034, ...]
-
-# Deltas are tiny! Scale and store as small integers:
-scaled_deltas = [0, 22, 45, 32, 34, ...]  # × 0.00001
-# Most deltas fit in 1-2 bytes instead of 8!
-
-# Result:
-# - Base value: 8 bytes
-# - 1000 deltas × ~1.5 bytes = 1,500 bytes
-# - Total: 1,508 bytes vs 8,000 bytes original
-# - Compression: 5.3x!
-
-# Even better with zstd: deltas have patterns too!</code></pre>
             </section>
 
             <section>
@@ -452,7 +389,7 @@ delta_deltas = [0, 0, 0]  # All zeros!
             <!-- PART 3: LOGS -->
             <section class="center">
                 <h1>Part 3: Logs</h1>
-                <p>📝 Structured Text Compression</p>
+                <p>📝 (Un)structured Text Compression</p>
             </section>
 
             <section>
@@ -472,19 +409,6 @@ delta_deltas = [0, 0, 0]  # All zeros!
                     <li>Variable types: timestamps, IPs, IDs, numbers, paths</li>
                     <li>Massive redundancy in structure</li>
                 </ul>
-            </section>
-
-            <section>
-                <h2>📈 Logs: Progressive Journey</h2>
-                <div class="box">
-                    <h4>We'll explore 6 compression phases</h4>
-                    <p class="small-text">From plain text through advanced log-specific techniques</p>
-                </div>
-                <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>Dataset:</strong> OpenSSH server logs (655,147 lines)</p>
-                    <p class="small-text"><strong>Starting point:</strong> 72.7 MB plain text</p>
-                    <p class="small-text">Each phase will demonstrate new optimizations</p>
-                </div>
             </section>
 
             <!-- Phase 1: Plain Text -->
@@ -541,18 +465,15 @@ Ratio: 24.5x</code></pre>
             <!-- Phase 3: Template Extraction -->
             <section>
                 <h2>Phase 3: Template Extraction (2.0 MB, 36.3x, Δ1.48x)</h2>
-                <div class="box danger">
-                    <h4>The CLP Breakthrough: Separate Structure from Data!</h4>
-                </div>
                 <pre><code class="language-python"># Original log lines (3 examples):
 Dec 10 06:55:48 LabSZ sshd[24200]: Failed password for root from 173.234.31.186 port 38926 ssh2
 Dec 10 07:14:32 LabSZ sshd[24205]: Failed password for root from 218.65.30.43 port 54913 ssh2
 Dec 10 08:03:17 LabSZ sshd[24220]: Failed password for root from 61.174.51.214 port 58389 ssh2
 
-# CLP separates into template + variables:
+# Separates into template + variables:
 Template #16: "<TIMESTAMP> LabSZ sshd[<NUM>]: Failed password for root from <IP> port <NUM> ssh2"
 
-Variables (columnar storage):
+Variables (columnar storage - again similar values together):
   TIMESTAMP: ["Dec 10 06:55:48", "Dec 10 07:14:32", ...]
   NUM (pid): [24200, 24205, 24220, ...]
   IP: ["173.234.31.186", "218.65.30.43", "61.174.51.214", ...]
@@ -562,7 +483,7 @@ Line-to-template mapping: [16, 16, 16, 16, 16, ...]  # Just template IDs!
 
 # This template used 139,818 times!
 Template storage: 81 bytes × 1 = 81 bytes
-Variables: 139,818 × (time + pid + IP + port) ≈ much smaller with type-aware compression
+Variables: 139,818 × (time + pid + IP + port)
 </code></pre>
             </section>
 
@@ -698,7 +619,6 @@ Template 6: "Connection closed" × 68,958 lines
                 </ul>
 
                 <p style="margin-top: 30px;"><strong>Final outcome:</strong> 1.895 MB → 1.897 MB (0.999x) - essentially no change because the ordering overhead (130 KB) is offset by better template grouping compression.</p>
-                <p><strong>Solution:</strong> Phase 6 drops order preservation to get the full benefit!</p>
             </section>
 
             <!-- Phase 6: Drop Order Preservation -->
@@ -707,34 +627,15 @@ Template 6: "Connection closed" × 68,958 lines
                 <div class="box">
                     <h4>Remove line ordering for maximum compression</h4>
                 </div>
-                <pre><code class="language-python"># Before (Phase 5): Preserve line numbers
-{
+                <pre><code class="language-python">{
   "templates": [...],
-  "line_to_template": [16, 16, 16, 6, 21, 16, ...],  # 655,147 entries
-  "variables_per_line": {
-    0: {"time": "...", "pid": ..., "ip": "...", "port": ...},
-    1: {"time": "...", "pid": ..., "ip": "...", "port": ...},
-    ...
-  }
-}
-
-# After (Phase 6): No line numbers, just templates + variables
-{
-  "templates": [...],
-  "template_data": {
-    16: {  # Template 16: 139,818 occurrences
-      "times": ["Dec 10 06:55:48", ...],         # 139,818 values
-      "pids": [24200, 24205, ...],               # 139,818 values
-      "ips": ["173.234.31.186", ...],            # 139,818 values
-      "ports": [38926, 54913, ...]               # 139,818 values
-    },
-    21: {  # Template 21: 139,572 occurrences
-      "times": [...],  # 139,572 values
-      "pids": [...],
-      "ips": [...],
-    },
-    ...
-  }
+  # 655,147 entries each
+  "line_to_template": [16, 16, 16, 6, 21, 16, ...], 
+  "var_time_0": [...],
+  "var_number_0": [...],
+  "var_number_1": [...],
+  "var_ip_0": [...],
+  "order_mapping_delta": [0, 0, 2, 1, 58, 0, ...] # just drop this column
 }
 
 # Benefits:
@@ -857,359 +758,9 @@ Template 6: "Connection closed" × 68,958 lines
                 </div>
             </section>
 
-            <section>
-                <h2>Logs: Key Takeaways</h2>
-                <div class="box success">
-                    <h4>✅ CLP Algorithm is the Star</h4>
-                    <ul class="small-text">
-                        <li><strong>Template extraction:</strong> Separating structure from data enables massive compression</li>
-                        <li><strong>Template reuse:</strong> Key metric - OpenSSH achieves 116x average reuse (5,669 templates for 655k lines)</li>
-                        <li><strong>Type-aware encoding:</strong> Each variable type compressed optimally (3-6x per type)</li>
-                        <li><strong>Ordering optimizations:</strong> Grouping similar data improves compression locality</li>
-                    </ul>
-                </div>
-                <div class="box" style="margin-top: 10px;">
-                    <h4>🎯 The Progression</h4>
-                    <p class="small-text">
-                        <span class="highlight">1x</span> (plain) → 
-                        <span class="highlight">24.5x</span> (+ zstd) → 
-                        <span class="highlight">36.3x</span> (+ templates) → 
-                        <span class="highlight">38.7x</span> (+ type-aware) → 
-                        <span class="highlight">41.2x</span> (+ optimizations)
-                    </p>
-                </div>
-            </section>
-            <!-- PART 4: TRACES -->
+            <!-- PART 4: REALITY CHECK -->
             <section class="center">
-                <h1>Part 4: Traces</h1>
-                <p>🔍 Distributed Execution Compression</p>
-            </section>
-
-            <section>
-                <h2>What Are Traces?</h2>
-                <div class="box">
-                    <h4>Distributed request execution flows</h4>
-                    <p class="small-text">Track a request across multiple microservices</p>
-                </div>
-                <pre class="small-text"><code>User Request → api-gateway (50ms)
-                  ↓
-               user-service (30ms)
-                  ↓
-               auth-service (20ms)
-                  ↓
-               auth-db (10ms)</code></pre>
-                <p class="small-text"><strong>Each "span" contains:</strong></p>
-                <ul class="small-text">
-                    <li>trace_id (links all spans in one request)</li>
-                    <li>span_id + parent_span_id (tree structure)</li>
-                    <li>service_name, operation_name</li>
-                    <li>start_time, end_time (nanoseconds)</li>
-                    <li>tags, logs, status</li>
-                </ul>
-            </section>
-
-            <section>
-                <h2>📈 Traces: Progressive Journey</h2>
-                <div class="box">
-                    <h4>We'll explore 5 compression phases</h4>
-                    <p class="small-text">From JSON through trace structure exploitation</p>
-                </div>
-                <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>Dataset:</strong> 50,000 traces, 141,531 spans, 12 services</p>
-                    <p class="small-text"><strong>Starting point:</strong> 71.1 MB NDJSON</p>
-                    <p class="small-text">Each phase will reveal new structural optimizations</p>
-                </div>
-            </section>
-
-            <!-- Phase 0: Original JSON -->
-            <section>
-                <h2>Phase 0: Original JSON (71.1 MB)</h2>
-                <div class="box">
-                    <h4>OpenTelemetry-style distributed trace data</h4>
-                </div>
-                <pre><code class="language-json">{
-  "trace_id": "trace-00000001-df734723",
-  "spans": [{
-    "trace_id": "trace-00000001-df734723",
-    "span_id": "666ffb28a8ca45d7",
-    "parent_span_id": null,
-    "operation_name": "authenticate",
-    "service_name": "api-gateway",
-    "start_time": 1761416099523944960,
-    "end_time": 1761416099585944960,
-    "duration": 62000000,
-    "tags": {
-      "service.name": "api-gateway",
-      "http.method": "DELETE",
-      "http.status_code": 201,
-      "user.id": "user-2256"
-    },
-    "logs": [],
-    "status_code": 0
-  }]
-}</code></pre>
-                <p class="small-text">❌ Verbose: Every field spelled out, repeated service/operation names</p>
-            </section>
-
-            <!-- Phase 1: NDJSON -->
-            <section>
-                <h2>Phase 1: NDJSON Baseline (71.1 MB, 1.0x)</h2>
-                <div class="box">
-                    <h4>One span per line (newline-delimited JSON)</h4>
-                </div>
-                <pre><code class="language-json">{"trace_id":"trace-00000001-df734723","span_id":"666ffb28a8ca45d7",...}
-{"trace_id":"trace-00000001-df734723","span_id":"8a89dc3a1a204434",...}
-{"trace_id":"trace-00000001-df734723","span_id":"b2deb5edd9a74b4f",...}
-{"trace_id":"trace-00000002-a9549627","span_id":"868b3925a9374271",...}</code></pre>
-                <p class="small-text"><strong>Characteristics:</strong></p>
-                <ul class="small-text">
-                    <li>141,531 spans = 141,531 lines</li>
-                    <li>Text-based, human-readable</li>
-                    <li>Easy to process line-by-line</li>
-                    <li>Repeated keys: "trace_id", "span_id", "service_name", etc.</li>
-                </ul>
-                <p class="small-text highlight">✅ Baseline established: 71.1 MB</p>
-            </section>
-
-            <!-- Phase 2: CBOR -->
-            <section>
-                <h2>Phase 2: CBOR Binary (39.6 MB, 1.79x, Δ1.79x)</h2>
-                <div class="box">
-                    <h4>Binary encoding with type tags</h4>
-                </div>
-                <pre><code class="language-plaintext"># JSON (text):
-{"trace_id": "trace-00000001-df734723", "span_id": "666ffb28a8ca45d7"}
-# 71 bytes
-
-# CBOR (binary):
-A2                        # map(2 items)
-  68 74726163655F6964     # "trace_id" (8 bytes)
-  78 1C 74726163652D...   # "trace-00000001-df734723" (28 bytes)
-  67 7370616E5F6964       # "span_id" (7 bytes)
-  70 363636666662323...   # "666ffb28a8ca45d7" (16 bytes)
-# 39 bytes (44% smaller!)
-
-# Still verbose: All keys/values in every span
-# But binary integers, efficient string encoding</code></pre>
-                <p class="small-text highlight">✅ 1.79x compression through binary encoding</p>
-            </section>
-
-            <!-- Phase 3: CBOR + zstd -->
-            <section>
-                <h2>Phase 3: CBOR + zstd (5.6 MB, 12.6x, Δ7.04x)</h2>
-                <div class="box">
-                    <h4>General-purpose compression on binary data</h4>
-                </div>
-                <pre><code class="language-plaintext"># zstd identifies patterns:
-Pattern 1: "trace_id" appears 141,531 times
-  → Dictionary entry #1 (4 bytes to reference)
-
-Pattern 2: "api-gateway" appears 50,000 times
-  → Dictionary entry #2
-
-Pattern 3: Sequential timestamps
-  → Run-length encoding
-
-Pattern 4: Repeated tag structures
-  → Reference previous occurrence
-
-# Result: 39.6 MB → 5.6 MB (7x additional compression)</code></pre>
-                <p class="small-text highlight">✅ 12.6x total compression - biggest single jump!</p>
-            </section>
-
-            <!-- Phase 4: Span Relationships -->
-            <section>
-                <h2>Phase 4: Span Relationships (2.3 MB, 30.5x, Δ2.43x)</h2>
-                <div class="box danger">
-                    <h4>The Breakthrough: Exploit Trace Structure!</h4>
-                </div>
-                <pre><code class="language-python"># Before: Every span stores full identifiers
-{
-  "trace_id": "trace-00000001-df734723",  # 28 bytes
-  "span_id": "666ffb28a8ca45d7",          # 16 bytes
-  "parent_span_id": "8a89dc3a1a204434",   # 16 bytes
-  "service_name": "api-gateway",          # 11 bytes
-  "operation_name": "authenticate"        # 12 bytes
-}
-
-# After: Dictionary + sequential IDs
-{
-  "services": ["api-gateway", "user-service", ...],  # 12 strings total
-  "operations": ["authenticate", "route_request", ...],  # 12 strings
-  "traces": [
-    {
-      "trace_id": "trace-00000001-df734723",
-      "spans": [
-        {"svc": 0, "op": 0, "parent": -1, "duration": 62000000},  # Root
-        {"svc": 1, "op": 2, "parent": 0, "duration": 97000000},   # Child of 0
-        {"svc": 2, "op": 5, "parent": 1, "duration": 31000000}    # Child of 1
-      ]
-    }
-  ]
-}</code></pre>
-            </section>
-
-            <section>
-                <h2>Phase 4: Relationship Compression Details</h2>
-                <div class="two-column small-text">
-                    <div>
-                        <h4>Service Deduplication</h4>
-                        <pre><code># Before:
-"api-gateway" × 50,000 = 550 KB
-"user-service" × 8,457 = 93 KB
-Total: ~1.5 MB
-
-# After:
-12 service names = 150 bytes
-50K IDs × 1 byte = 50 KB
-Total: 50 KB (30x!)</code></pre>
-                    </div>
-                    <div>
-                        <h4>Parent Relationships</h4>
-                        <pre><code># Before:
-UUID parent_span_id × 141K
-= 2.3 MB
-
-# After:
-Sequential index × 141K
-= 141 KB (16x!)
-
-Root: parent = -1
-Others: parent = 0-9</code></pre>
-                    </div>
-                </div>
-                <div class="box" style="margin-top: 20px;">
-                    <h4>Timestamp Delta Encoding</h4>
-                    <pre><code class="small-text"># Root span: 1761416099523944960 (store full timestamp)
-# Child span 1: +10,000,000 (10ms later, store delta)
-# Child span 2: +20,000,000 (20ms after child 1)
-# Result: 2-3 bytes per delta vs 8 bytes absolute</code></pre>
-                </div>
-                <p class="small-text highlight" style="text-align: center;">✅ 30.5x compression through structure exploitation!</p>
-            </section>
-
-            <!-- Phase 5: Columnar Storage -->
-            <section>
-                <h2>Phase 5: Columnar Storage (1.9 MB, 37.3x, Δ1.22x)</h2>
-                <div class="box">
-                    <h4>Separate data by type for better compression</h4>
-                </div>
-                <pre><code class="language-python"># Before (row-oriented):
-span1: {duration: 62000000, status: 0, parent: -1}
-span2: {duration: 97000000, status: 0, parent: 0}
-span3: {duration: 31000000, status: 0, parent: 1}
-# Mixed types, poor compression locality
-
-# After (columnar):
-{
-  "durations": [62000000, 97000000, 31000000, ...],  # All similar values
-  "status_codes": [0, 0, 0, 0, 1, 0, ...],           # Mostly zeros
-  "parent_indices": [-1, 0, 1, 2, 1, 0, ...],        # Small integers
-  "span_positions": [4, 9, 1, 1, 1, 9, 9, ...]       # Spans per trace
-}
-
-# Compressed columnar arrays:
-# - durations: 708KB → 308KB (delta encoding + zstd)
-# - status_codes: 141KB → 4KB (run-length: mostly zeros!)
-# - parent_indices: 141KB → 11KB (small integers compress well)</code></pre>
-                <p class="small-text highlight">✅ 37.3x total compression - columnar wins!</p>
-            </section>
-
-            <!-- Comparison slide -->
-            <section>
-                <h2>Traces: Compression Comparison</h2>
-                <table style="font-size: 0.6em;">
-                    <thead>
-                        <tr>
-                            <th>Phase</th>
-                            <th>Format</th>
-                            <th>Size</th>
-                            <th>Ratio</th>
-                            <th>Key Technique</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>0</td>
-                            <td>Original JSON</td>
-                            <td class="danger">71.1 MB</td>
-                            <td>1.0x</td>
-                            <td>None (baseline)</td>
-                        </tr>
-                        <tr>
-                            <td>1</td>
-                            <td>NDJSON</td>
-                            <td class="danger">71.1 MB</td>
-                            <td>1.0x</td>
-                            <td>Line-delimited format</td>
-                        </tr>
-                        <tr>
-                            <td>2</td>
-                            <td>CBOR</td>
-                            <td class="warning">39.6 MB</td>
-                            <td>1.79x</td>
-                            <td>Binary encoding</td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td>CBOR + zstd</td>
-                            <td class="warning">5.6 MB</td>
-                            <td class="success">12.6x</td>
-                            <td>Dictionary compression</td>
-                        </tr>
-                        <tr>
-                            <td>4</td>
-                            <td>Relationships</td>
-                            <td class="success">2.3 MB</td>
-                            <td class="success">30.5x</td>
-                            <td>Service dict + sequential IDs</td>
-                        </tr>
-                        <tr>
-                            <td>5</td>
-                            <td>Columnar</td>
-                            <td class="success">1.9 MB</td>
-                            <td class="success">37.3x</td>
-                            <td>Type-grouped arrays</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>From 71.1 MB → 1.9 MB with structured exploitation!</strong></p>
-                    <p class="small-text">Dataset: 50,000 traces × 2.8 avg spans = 141,531 total spans</p>
-                </div>
-            </section>
-
-            <!-- Key Takeaways -->
-            <section>
-                <h2>Traces: Key Takeaways</h2>
-                <div class="box success">
-                    <h4>✅ Structure Exploitation Wins</h4>
-                    <ul class="small-text">
-                        <li><strong>Service topology:</strong> 12 services across 141K spans → 22x deduplication</li>
-                        <li><strong>Parent-child relationships:</strong> Sequential IDs vs UUIDs → 16x compression</li>
-                        <li><strong>Timestamp locality:</strong> Delta from root → 2-4x compression</li>
-                        <li><strong>Columnar arrays:</strong> Group similar types → 1.2x additional improvement</li>
-                    </ul>
-                </div>
-                <div class="box" style="margin-top: 10px;">
-                    <h4>🎯 The Progression</h4>
-                    <p class="small-text">
-                        <span class="highlight">1x</span> (NDJSON) → 
-                        <span class="highlight">1.8x</span> (+ binary) → 
-                        <span class="highlight">12.6x</span> (+ zstd) → 
-                        <span class="highlight">30.5x</span> (+ relationships) → 
-                        <span class="highlight">37.3x</span> (+ columnar)
-                    </p>
-                </div>
-                <div class="box warning" style="margin-top: 10px;">
-                    <h4>📊 Format Choice Matters</h4>
-                    <p class="small-text">Relationship format for storage, Columnar format for analytics</p>
-                </div>
-            </section>
-
-            <!-- PART 5: REALITY CHECK -->
-            <section class="center">
-                <h1>Part 5: Reality Check</h1>
+                <h1>Part 3: Reality Check</h1>
                 <p>⚖️ Trade-offs & Practical Considerations</p>
             </section>
 
@@ -1268,36 +819,6 @@ span3: {duration: 31000000, status: 0, parent: 1}
             </section>
 
             <section>
-                <h2>🏭 Production System Examples</h2>
-                <div class="box">
-                    <h4>Prometheus (Metrics)</h4>
-                    <ul class="small-text">
-                        <li>Uses XOR compression (Gorilla algorithm) + delta encoding</li>
-                        <li>Compression: ~10-20x (balanced approach)</li>
-                        <li>Query speed: Milliseconds for recent data</li>
-                        <li>Trade-off: Moderate compression for fast queries</li>
-                    </ul>
-                </div>
-                <div class="box" style="margin-top: 10px;">
-                    <h4>Elasticsearch (Logs)</h4>
-                    <ul class="small-text">
-                        <li>Uses Lucene inverted indexes + LZ4/DEFLATE compression</li>
-                        <li>Compression: ~5-15x (optimized for search speed)</li>
-                        <li>Query speed: Milliseconds with skip lists and indexes</li>
-                        <li>Trade-off: Lower compression for fast full-text search</li>
-                    </ul>
-                </div>
-                <div class="box" style="margin-top: 10px;">
-                    <h4>Jaeger/Tempo (Traces)</h4>
-                    <ul class="small-text">
-                        <li>Use Parquet columnar format for storage</li>
-                        <li>Compression: 10-30x depending on data</li>
-                        <li>Trade-off: Optimized for querying by service/operation</li>
-                    </ul>
-                </div>
-            </section>
-
-            <section>
                 <h2>🎓 Key Lessons Learned</h2>
                 <div class="box success">
                     <h4>✅ Domain Knowledge is Powerful</h4>
@@ -1338,36 +859,11 @@ python main.py --size small
 # Try logs compression  
 cd ../logs
 python main.py --size small
-
-# Try traces compression
-cd ../traces
-python main.py --size small
 </code></pre>
+                <p class="small-text" style="margin-top: 20px; text-align: center;">
+                    <em>Traces compression covered in separate presentation (traces.html)</em>
+                </p>
             </section>
-
-            <!-- CONCLUSION -->
-            <section class="center">
-                <h1>Summary</h1>
-                <div class="box" style="margin-top: 40px;">
-                    <h3>Compression Achievements</h3>
-                    <ul style="font-size: 0.9em;">
-                        <li>📊 <strong>Metrics:</strong> 84 MB → 1 MB (79.7x) via pattern-aware algorithms</li>
-                        <li>📝 <strong>Logs:</strong> 72.7 MB → 1.77 MB (41.2x) via template extraction (CLP)</li>
-                        <li>🔍 <strong>Traces:</strong> 71.1 MB → 1.9 MB (37.3x) via relationship encoding</li>
-                    </ul>
-                </div>
-                <div class="box success" style="margin-top: 30px;">
-                    <h4>The Universal Principle</h4>
-                    <p><strong>Understand your data → Apply specialized techniques → Compound with general compression</strong></p>
-                </div>
-            </section>
-
-            <section class="center">
-                <h1>Questions?</h1>
-                <p style="margin-top: 50px;">🗜️ github.com/flash1293/squeezed-signals</p>
-                <p style="margin-top: 30px;" class="small-text">Press <kbd>?</kbd> for keyboard shortcuts</p>
-            </section>
-
         </div>
     </div>
 

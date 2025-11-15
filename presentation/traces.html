@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squeezed Signals: Distributed Traces Compression</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reset.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/black.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/monokai.css">
+    <style>
+        .reveal h1, .reveal h2, .reveal h3 {
+            text-transform: none;
+        }
+        .reveal section {
+            text-align: left;
+        }
+        .reveal section.center {
+            text-align: center;
+        }
+        .reveal pre {
+            width: 100%;
+            font-size: 0.5em;
+        }
+        .reveal code {
+            font-family: 'Courier New', monospace;
+        }
+        .reveal table {
+            font-size: 0.7em;
+        }
+        .reveal .highlight {
+            color: #42affa;
+            font-weight: bold;
+        }
+        .reveal .success {
+            color: #5cb85c;
+        }
+        .reveal .warning {
+            color: #f0ad4e;
+        }
+        .reveal .danger {
+            color: #d9534f;
+        }
+        .comparison-table {
+            margin: 20px auto;
+        }
+        .comparison-table th {
+            background-color: #42affa;
+        }
+        .comparison-table td {
+            text-align: center;
+        }
+        .emoji {
+            font-size: 1.5em;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .box {
+            border: 2px solid #42affa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .small-text {
+            font-size: 0.8em;
+        }
+        .formula {
+            background: #1a1a1a;
+            padding: 10px;
+            border-left: 4px solid #42affa;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- Title Slide -->
+            <section class="center">
+                <h1>🔍 Squeezed Signals: Traces</h1>
+                <h3>Distributed Execution Flow Compression</h3>
+                <p style="margin-top: 50px;">A deep dive into compressing distributed trace data</p>
+                <p class="small-text" style="margin-top: 50px;">Press <kbd>Space</kbd> to navigate →</p>
+            </section>
+
+            <!-- PART 1: INTRODUCTION -->
+            <section class="center">
+                <h1>What Are Traces?</h1>
+                <p>Understanding Distributed Execution Flows</p>
+            </section>
+
+            <section>
+                <h2>What Are Traces?</h2>
+                <div class="box">
+                    <h4>Distributed request execution flows</h4>
+                    <p class="small-text">Track a request across multiple microservices</p>
+                </div>
+                <pre class="small-text"><code>User Request → api-gateway (50ms)
+                  ↓
+               user-service (30ms)
+                  ↓
+               auth-service (20ms)
+                  ↓
+               auth-db (10ms)</code></pre>
+                <p class="small-text"><strong>Each "span" contains:</strong></p>
+                <ul class="small-text">
+                    <li>trace_id (links all spans in one request)</li>
+                    <li>span_id + parent_span_id (tree structure)</li>
+                    <li>service_name, operation_name</li>
+                    <li>start_time, end_time (nanoseconds)</li>
+                    <li>tags, logs, status</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>📈 Traces: Progressive Journey</h2>
+                <div class="box">
+                    <h4>We'll explore 5 compression phases</h4>
+                    <p class="small-text">From JSON through trace structure exploitation</p>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="small-text"><strong>Dataset:</strong> 50,000 traces, 141,531 spans, 12 services</p>
+                    <p class="small-text"><strong>Starting point:</strong> 71.1 MB NDJSON</p>
+                    <p class="small-text">Each phase will reveal new structural optimizations</p>
+                </div>
+            </section>
+
+            <!-- Phase 0: Original JSON -->
+            <section>
+                <h2>Phase 0: Original JSON (71.1 MB)</h2>
+                <div class="box">
+                    <h4>OpenTelemetry-style distributed trace data</h4>
+                </div>
+                <pre><code class="language-json">{
+  "trace_id": "trace-00000001-df734723",
+  "spans": [{
+    "trace_id": "trace-00000001-df734723",
+    "span_id": "666ffb28a8ca45d7",
+    "parent_span_id": null,
+    "operation_name": "authenticate",
+    "service_name": "api-gateway",
+    "start_time": 1761416099523944960,
+    "end_time": 1761416099585944960,
+    "duration": 62000000,
+    "tags": {
+      "service.name": "api-gateway",
+      "http.method": "DELETE",
+      "http.status_code": 201,
+      "user.id": "user-2256"
+    },
+    "logs": [],
+    "status_code": 0
+  }]
+}</code></pre>
+                <p class="small-text">❌ Verbose: Every field spelled out, repeated service/operation names</p>
+            </section>
+
+            <!-- Phase 1: NDJSON -->
+            <section>
+                <h2>Phase 1: NDJSON Baseline (71.1 MB, 1.0x)</h2>
+                <div class="box">
+                    <h4>One span per line (newline-delimited JSON)</h4>
+                </div>
+                <pre><code class="language-json">{"trace_id":"trace-00000001-df734723","span_id":"666ffb28a8ca45d7",...}
+{"trace_id":"trace-00000001-df734723","span_id":"8a89dc3a1a204434",...}
+{"trace_id":"trace-00000001-df734723","span_id":"b2deb5edd9a74b4f",...}
+{"trace_id":"trace-00000002-a9549627","span_id":"868b3925a9374271",...}</code></pre>
+                <p class="small-text"><strong>Characteristics:</strong></p>
+                <ul class="small-text">
+                    <li>141,531 spans = 141,531 lines</li>
+                    <li>Text-based, human-readable</li>
+                    <li>Easy to process line-by-line</li>
+                    <li>Repeated keys: "trace_id", "span_id", "service_name", etc.</li>
+                </ul>
+                <p class="small-text highlight">✅ Baseline established: 71.1 MB</p>
+            </section>
+
+            <!-- Phase 2: CBOR -->
+            <section>
+                <h2>Phase 2: CBOR Binary (39.6 MB, 1.79x, Δ1.79x)</h2>
+                <div class="box">
+                    <h4>Binary encoding with type tags</h4>
+                </div>
+                <pre><code class="language-plaintext"># JSON (text):
+{"trace_id": "trace-00000001-df734723", "span_id": "666ffb28a8ca45d7"}
+# 71 bytes
+
+# CBOR (binary):
+A2                        # map(2 items)
+  68 74726163655F6964     # "trace_id" (8 bytes)
+  78 1C 74726163652D...   # "trace-00000001-df734723" (28 bytes)
+  67 7370616E5F6964       # "span_id" (7 bytes)
+  70 363636666662323...   # "666ffb28a8ca45d7" (16 bytes)
+# 39 bytes (44% smaller!)
+
+# Still verbose: All keys/values in every span
+# But binary integers, efficient string encoding</code></pre>
+                <p class="small-text highlight">✅ 1.79x compression through binary encoding</p>
+            </section>
+
+            <!-- Phase 3: CBOR + zstd -->
+            <section>
+                <h2>Phase 3: CBOR + zstd (5.6 MB, 12.6x, Δ7.04x)</h2>
+                <div class="box">
+                    <h4>General-purpose compression on binary data</h4>
+                </div>
+                <pre><code class="language-plaintext"># zstd identifies patterns:
+Pattern 1: "trace_id" appears 141,531 times
+  → Dictionary entry #1 (4 bytes to reference)
+
+Pattern 2: "api-gateway" appears 50,000 times
+  → Dictionary entry #2
+
+Pattern 3: Sequential timestamps
+  → Run-length encoding
+
+Pattern 4: Repeated tag structures
+  → Reference previous occurrence
+
+# Result: 39.6 MB → 5.6 MB (7x additional compression)</code></pre>
+                <p class="small-text highlight">✅ 12.6x total compression - biggest single jump!</p>
+            </section>
+
+            <!-- Phase 4: Span Relationships -->
+            <section>
+                <h2>Phase 4: Span Relationships (2.3 MB, 30.5x, Δ2.43x)</h2>
+                <div class="box danger">
+                    <h4>The Breakthrough: Exploit Trace Structure!</h4>
+                </div>
+                <pre><code class="language-python"># Before: Every span stores full identifiers
+{
+  "trace_id": "trace-00000001-df734723",  # 28 bytes
+  "span_id": "666ffb28a8ca45d7",          # 16 bytes
+  "parent_span_id": "8a89dc3a1a204434",   # 16 bytes
+  "service_name": "api-gateway",          # 11 bytes
+  "operation_name": "authenticate"        # 12 bytes
+}
+
+# After: Dictionary + sequential IDs
+{
+  "services": ["api-gateway", "user-service", ...],  # 12 strings total
+  "operations": ["authenticate", "route_request", ...],  # 12 strings
+  "traces": [
+    {
+      "trace_id": "trace-00000001-df734723",
+      "spans": [
+        {"svc": 0, "op": 0, "parent": -1, "duration": 62000000},  # Root
+        {"svc": 1, "op": 2, "parent": 0, "duration": 97000000},   # Child of 0
+        {"svc": 2, "op": 5, "parent": 1, "duration": 31000000}    # Child of 1
+      ]
+    }
+  ]
+}</code></pre>
+            </section>
+
+            <section>
+                <h2>Phase 4: Relationship Compression Details</h2>
+                <div class="two-column small-text">
+                    <div>
+                        <h4>Service Deduplication</h4>
+                        <pre><code># Before:
+"api-gateway" × 50,000 = 550 KB
+"user-service" × 8,457 = 93 KB
+Total: ~1.5 MB
+
+# After:
+12 service names = 150 bytes
+50K IDs × 1 byte = 50 KB
+Total: 50 KB (30x!)</code></pre>
+                    </div>
+                    <div>
+                        <h4>Parent Relationships</h4>
+                        <pre><code># Before:
+UUID parent_span_id × 141K
+= 2.3 MB
+
+# After:
+Sequential index × 141K
+= 141 KB (16x!)
+
+Root: parent = -1
+Others: parent = 0-9</code></pre>
+                    </div>
+                </div>
+                <div class="box" style="margin-top: 20px;">
+                    <h4>Timestamp Delta Encoding</h4>
+                    <pre><code class="small-text"># Root span: 1761416099523944960 (store full timestamp)
+# Child span 1: +10,000,000 (10ms later, store delta)
+# Child span 2: +20,000,000 (20ms after child 1)
+# Result: 2-3 bytes per delta vs 8 bytes absolute</code></pre>
+                </div>
+                <p class="small-text highlight" style="text-align: center;">✅ 30.5x compression through structure exploitation!</p>
+            </section>
+
+            <!-- Phase 5: Columnar Storage -->
+            <section>
+                <h2>Phase 5: Columnar Storage (1.9 MB, 37.3x, Δ1.22x)</h2>
+                <div class="box">
+                    <h4>Separate data by type for better compression</h4>
+                </div>
+                <pre><code class="language-python"># Before (row-oriented):
+span1: {duration: 62000000, status: 0, parent: -1}
+span2: {duration: 97000000, status: 0, parent: 0}
+span3: {duration: 31000000, status: 0, parent: 1}
+# Mixed types, poor compression locality
+
+# After (columnar):
+{
+  "durations": [62000000, 97000000, 31000000, ...],  # All similar values
+  "status_codes": [0, 0, 0, 0, 1, 0, ...],           # Mostly zeros
+  "parent_indices": [-1, 0, 1, 2, 1, 0, ...],        # Small integers
+  "span_positions": [4, 9, 1, 1, 1, 9, 9, ...]       # Spans per trace
+}
+
+# Compressed columnar arrays:
+# - durations: 708KB → 308KB (delta encoding + zstd)
+# - status_codes: 141KB → 4KB (run-length: mostly zeros!)
+# - parent_indices: 141KB → 11KB (small integers compress well)</code></pre>
+                <p class="small-text highlight">✅ 37.3x total compression - columnar wins!</p>
+            </section>
+
+            <!-- Comparison slide -->
+            <section>
+                <h2>Traces: Compression Comparison</h2>
+                <table style="font-size: 0.6em;">
+                    <thead>
+                        <tr>
+                            <th>Phase</th>
+                            <th>Format</th>
+                            <th>Size</th>
+                            <th>Ratio</th>
+                            <th>Key Technique</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>0</td>
+                            <td>Original JSON</td>
+                            <td class="danger">71.1 MB</td>
+                            <td>1.0x</td>
+                            <td>None (baseline)</td>
+                        </tr>
+                        <tr>
+                            <td>1</td>
+                            <td>NDJSON</td>
+                            <td class="danger">71.1 MB</td>
+                            <td>1.0x</td>
+                            <td>Line-delimited format</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>CBOR</td>
+                            <td class="warning">39.6 MB</td>
+                            <td>1.79x</td>
+                            <td>Binary encoding</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>CBOR + zstd</td>
+                            <td class="warning">5.6 MB</td>
+                            <td class="success">12.6x</td>
+                            <td>Dictionary compression</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td>Relationships</td>
+                            <td class="success">2.3 MB</td>
+                            <td class="success">30.5x</td>
+                            <td>Service dict + sequential IDs</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td>Columnar</td>
+                            <td class="success">1.9 MB</td>
+                            <td class="success">37.3x</td>
+                            <td>Type-grouped arrays</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="box" style="margin-top: 20px;">
+                    <p class="small-text"><strong>From 71.1 MB → 1.9 MB with structured exploitation!</strong></p>
+                    <p class="small-text">Dataset: 50,000 traces × 2.8 avg spans = 141,531 total spans</p>
+                </div>
+            </section>
+
+            <!-- Key Takeaways -->
+            <section>
+                <h2>Traces: Key Takeaways</h2>
+                <div class="box success">
+                    <h4>✅ Structure Exploitation Wins</h4>
+                    <ul class="small-text">
+                        <li><strong>Service topology:</strong> 12 services across 141K spans → 22x deduplication</li>
+                        <li><strong>Parent-child relationships:</strong> Sequential IDs vs UUIDs → 16x compression</li>
+                        <li><strong>Timestamp locality:</strong> Delta from root → 2-4x compression</li>
+                        <li><strong>Columnar arrays:</strong> Group similar types → 1.2x additional improvement</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>🎯 The Progression</h4>
+                    <p class="small-text">
+                        <span class="highlight">1x</span> (NDJSON) → 
+                        <span class="highlight">1.8x</span> (+ binary) → 
+                        <span class="highlight">12.6x</span> (+ zstd) → 
+                        <span class="highlight">30.5x</span> (+ relationships) → 
+                        <span class="highlight">37.3x</span> (+ columnar)
+                    </p>
+                </div>
+                <div class="box warning" style="margin-top: 10px;">
+                    <h4>📊 Format Choice Matters</h4>
+                    <p class="small-text">Relationship format for storage, Columnar format for analytics</p>
+                </div>
+            </section>
+
+            <!-- REALITY CHECK -->
+            <section class="center">
+                <h1>Reality Check</h1>
+                <p>⚖️ Trade-offs & Practical Considerations</p>
+            </section>
+
+            <section>
+                <h2>🏭 Production System Examples</h2>
+                <div class="box">
+                    <h4>Jaeger (Traces)</h4>
+                    <ul class="small-text">
+                        <li>Stores traces in Elasticsearch or Cassandra</li>
+                        <li>Recent versions: Parquet columnar format for long-term storage</li>
+                        <li>Compression: 10-30x depending on data</li>
+                        <li>Trade-off: Optimized for querying by service/operation</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>Grafana Tempo (Traces)</h4>
+                    <ul class="small-text">
+                        <li>Uses Parquet columnar format with multiple storage backends</li>
+                        <li>Compression: ~20-40x with columnar encoding</li>
+                        <li>Optimized for trace ID lookup and service/span queries</li>
+                        <li>Trade-off: Write amplification during compaction</li>
+                    </ul>
+                </div>
+                <div class="box" style="margin-top: 10px;">
+                    <h4>Amazon X-Ray (Traces)</h4>
+                    <ul class="small-text">
+                        <li>Proprietary storage optimized for trace structure</li>
+                        <li>Likely uses relationship-based encoding similar to Phase 4</li>
+                        <li>Fast queries by trace ID, service map generation</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section>
+                <h2>🔬 Try It Yourself!</h2>
+                <div class="box">
+                    <h4>The squeezed-signals Repository</h4>
+                    <p class="small-text">github.com/flash1293/squeezed-signals</p>
+                </div>
+                <pre><code class="language-bash"># Clone and set up
+git clone https://github.com/flash1293/squeezed-signals.git
+cd squeezed-signals
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Try traces compression
+cd traces
+python main.py --size small
+
+# Explore the phases:
+python 00_generate_data.py
+python 01_ndjson_storage.py
+python 02_cbor_storage.py
+python 03_cbor_zstd.py
+python 04_span_relationships.py
+python 05_columnar_storage.py
+</code></pre>
+            </section>
+
+            <!-- CONCLUSION -->
+            <section class="center">
+                <h1>Summary</h1>
+                <div class="box" style="margin-top: 40px;">
+                    <h3>Traces Compression Achievement</h3>
+                    <ul style="font-size: 0.9em;">
+                        <li>🔍 <strong>71.1 MB → 1.9 MB (37.3x)</strong></li>
+                        <li>Key insight: Exploit trace tree structure</li>
+                        <li>Service deduplication: 22x improvement</li>
+                        <li>Relationship encoding: 16x for parent IDs</li>
+                        <li>Columnar storage: Additional 1.2x gain</li>
+                    </ul>
+                </div>
+                <div class="box success" style="margin-top: 30px;">
+                    <h4>The Universal Principle</h4>
+                    <p><strong>Understand your data structure → Apply specialized techniques → Compound with general compression</strong></p>
+                </div>
+            </section>
+
+            <section class="center">
+                <h1>Questions?</h1>
+                <p style="margin-top: 50px;">🔍 github.com/flash1293/squeezed-signals</p>
+                <p style="margin-top: 30px;" class="small-text">Press <kbd>?</kbd> for keyboard shortcuts</p>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/notes/notes.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/highlight.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            controls: false,
+            progress: true,
+            center: true,
+            transition: 'slide',
+            width: 1200,
+            height: 920,
+            margin: 0.04,
+            plugins: [ RevealHighlight, RevealNotes ]
+        });
+    </script>
+</body>
+</html>
