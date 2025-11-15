@@ -236,17 +236,20 @@
                     <h4>Switch to binary format</h4>
                 </div>
                 <pre><code class="language-plaintext"># JSON (text):
-{"timestamp": 1698000000}
-# 25 bytes
+{"timestamp": 1698000000, "value": 72.34567}
+# 45 bytes
 
 # CBOR (binary):
-A1                        # map(1 item)
+A2                        # map(2 items)
   69 74696D657374616D70   # "timestamp" (9 bytes)
   1A 6536CD80             # unsigned(1698000000) (5 bytes)
-# 15 bytes (40% smaller!)
+  65 76616C7565           # "value" (5 bytes)
+  FB 4052162C9D54F4E7     # float64(72.34567) (9 bytes)
+# 29 bytes (36% smaller!)
 
 # Benefits:
 # - Integers stored as binary, not strings
+# - Floats use IEEE 754 (8 bytes) instead of text representation
 # - Type information embedded efficiently
 # - No whitespace or quotes needed
 # - Still preserves all structure</code></pre>
@@ -259,16 +262,18 @@ A1                        # map(1 item)
                 <div class="box">
                     <h4>Add general-purpose compression</h4>
                 </div>
-                <pre><code class="language-plaintext"># zstd dictionary learning discovers patterns:
+                <pre><code class="language-plaintext"># zstd uses two main techniques:
 
-Pattern 1: "system.cpu.user" (appears 10k times)
-  → Dictionary entry #1 (2 bytes to reference)
+1. Dictionary compression:
+   - Analyzes sample data to find common byte sequences
+   - Pre-loads dictionary with frequent patterns
+   - Example: "system.cpu.user" → dict entry (referenced with few bits)
 
-Pattern 2: "server-01" (appears 10k times)
-  → Dictionary entry #2
-
-Pattern 3: Label structure repetition
-  → Reference previous occurrences (the same x bytes from y bytes ago)
+2. LZ77 back-references (sliding window):
+   - Finds repeated byte sequences in recent data
+   - Encodes as (offset, length) pairs
+   - Example: "Copy 47 bytes from 3840 bytes ago"
+   - Works great for CBOR label maps that repeat every 60s
 
 # Result: 63.9 MB → 3.8 MB (16.8x additional compression!)
 # Combined: 80.8 MB → 3.8 MB (21.3x total)</code></pre>
@@ -279,20 +284,24 @@ Pattern 3: Label structure repetition
             <section>
                 <h2>Phase 4: Binary Table with String Deduplication (2.8 MB, 28.9x, Δ1.36x)</h2>
                 <div class="box">
-                    <h4>Key Insight: String Deduplication</h4>
+                    <h4>Key Insight: String Deduplication + Binary Table Format</h4>
                 </div>
-                <pre><code class="language-python"># Before: Each row stores full strings
-{name: "system.cpu.user", labels: {host: "server-01", dc: "us-west-1"}}
-{name: "system.cpu.user", labels: {host: "server-01", dc: "us-west-1"}}
-# "system.cpu.user" repeated 1000 times = 17,000 bytes
+                <pre><code class="language-python"># After: Binary table with string dictionary
+String table (stored once):
+  0: "system.cpu.user"
+  1: "server-01"
+  2: "us-west-1"
 
-# After: Store strings once, use IDs
-strings: ["system.cpu.user", "server-01", "us-west-1"]
-rows: [{name_id: 0, label_ids: [1, 2], value: 72.34589}, {name_id: 0, label_ids: [1, 2], value: 72.34612}]
-# 17 bytes + (1000 × 3 bytes) = 3,017 bytes
+Binary rows (fixed-size records):
+  [name_id: uint16, label_ids: uint16[], timestamp: uint64, value: float64]
+  [0, [1, 2], 1698000000, 72.34589]
+  [0, [1, 2], 1698000060, 72.34612]
+  ...
 
-# Savings: 5.6x just from deduplication!</code></pre>
-                <p class="small-text highlight">✅ 28.9x total - deduplication enables better zstd compression</p>
+# Benefits:
+# - String deduplication: "system.cpu.user" stored once, not 1000x
+# - Fixed-size binary rows: no field names, no delimiters
+# - Small integer IDs compress better than back-references to strings</code></pre>
             </section>
 
             <!-- Phase 5: Columnar Storage -->
@@ -553,24 +562,12 @@ Raw: ["Dec 10 06:55:46", "Dec 10 06:55:46", "Dec 10 06:55:48", ...]
 Delta encoded:
   Base: "Dec 10 06:55:46"
   Deltas: [0, 0, 2, 1, 58, 0, ...]  # Seconds difference
-  Compression: 12,447,793 bytes → efficient storage (using numpy arrays)
 
 # IP variables (549,454 occurrences):
 Raw: ["173.234.31.186", "173.234.31.186", "212.47.254.145", ...]
 Integer encoding + Dictionary:
   Convert to uint32: [2910973370, 2910973370, 3561263233, ...]
   Dictionary + indices for repeated IPs
-  Compression: ~6.8 MB → 2.2 MB (3.1x)
-
-# NUM (port/pid) variables (1,458,375 occurrences):
-Raw: [24200, 38926, 24203, 54913, 24220, 58389, ...]
-Numpy array (efficient integer storage):
-  Compression: Uses compact numpy dtype
-  Size: 11.7 MB (efficient integer packing)
-
-# PATH variables (11 occurrences):
-Raw: ["/var/log/secure", "/etc/ssh/sshd_config", ...]
-Dictionary with prefix compression: 232 bytes
 </code></pre>
             </section>
 
