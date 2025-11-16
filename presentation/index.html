@@ -210,7 +210,7 @@
 
             <!-- Phase 1: NDJSON Baseline -->
             <section>
-                <h2>Phase 1: NDJSON Baseline (80.8 MB, 1.0x)</h2>
+                <h2>Phase 1: NDJSON Baseline</h2>
                 <div class="box">
                     <h4>Newline-Delimited JSON</h4>
                 </div>
@@ -229,9 +229,20 @@
                 </ul>
             </section>
 
+            <section>
+                <h2>Phase 1: NDJSON Results</h2>
+                <div class="box">
+                    <h4>Baseline Metrics</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 80.8 MB</p>
+                    <p><strong>Compression:</strong> 1.0x (baseline)</p>
+                </div>
+            </section>
+
             <!-- Phase 2: CBOR Binary -->
             <section>
-                <h2>Phase 2: CBOR Binary Encoding (63.9 MB, 1.26x, Δ1.26x)</h2>
+                <h2>Phase 2: CBOR Binary Encoding</h2>
                 <div class="box">
                     <h4>Switch to binary format</h4>
                 </div>
@@ -245,44 +256,70 @@ A2                        # map(2 items)
   1A 6536CD80             # unsigned(1698000000) (5 bytes)
   65 76616C7565           # "value" (5 bytes)
   FB 4052162C9D54F4E7     # float64(72.34567) (9 bytes)
-# 29 bytes (36% smaller!)
+# 29 bytes
 
 # Benefits:
 # - Integers stored as binary, not strings
 # - Floats use IEEE 754 (8 bytes) instead of text representation
-# - Type information embedded efficiently
 # - No whitespace or quotes needed
 # - Still preserves all structure</code></pre>
-                <p class="small-text highlight">✅ 1.26x compression through binary encoding</p>
+            </section>
+
+            <section>
+                <h2>Phase 2: CBOR Results</h2>
+                <div class="box">
+                    <h4>Binary Encoding Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 63.9 MB</p>
+                    <p><strong>Compression:</strong> 1.26x</p>
+                    <p><strong>Improvement:</strong> Δ1.26x from Phase 1</p>
+                </div>
+                <p class="small-text highlight" style="text-align: center;">✅ 1.26x compression through binary encoding</p>
             </section>
 
             <!-- Phase 3: CBOR + zstd -->
             <section>
-                <h2>Phase 3: CBOR + zstd Compression (3.8 MB, 21.3x, Δ16.8x)</h2>
+                <h2>Phase 3: CBOR + zstd Compression</h2>
                 <div class="box">
                     <h4>Add general-purpose compression</h4>
                 </div>
-                <pre><code class="language-plaintext"># zstd uses two main techniques:
+                <div class="small-text">
+                    <p><strong>zstd uses LZ77 back-references (sliding window):</strong></p>
+                    <ul>
+                        <li>Finds repeated byte sequences in recent data</li>
+                        <li>Encodes as (offset, length) pairs</li>
+                        <li>Example: "Copy 47 bytes from 3840 bytes ago"</li>
+                        <li>Works great for CBOR label maps that repeat every 60s</li>
+                    </ul>
+                    <div class="formula" style="margin-top: 15px;">
+                        <p><strong>Example encoding for metrics data:</strong></p>
+                        <p class="small-text" style="font-family: monospace;">
+                            [literal: timestamp=1758824980] [back-ref: offset=60, len=47] [literal: value=0.18]
+                        </p>
+                        <p class="small-text" style="margin-top: 5px;">
+                            The middle back-reference copies the entire CBOR map for metric_name and labels from 60 bytes ago
+                        </p>
+                    </div>
+                </div>
+            </section>
 
-1. Dictionary compression:
-   - Analyzes sample data to find common byte sequences
-   - Pre-loads dictionary with frequent patterns
-   - Example: "system.cpu.user" → dict entry (referenced with few bits)
-
-2. LZ77 back-references (sliding window):
-   - Finds repeated byte sequences in recent data
-   - Encodes as (offset, length) pairs
-   - Example: "Copy 47 bytes from 3840 bytes ago"
-   - Works great for CBOR label maps that repeat every 60s
-
-# Result: 63.9 MB → 3.8 MB (16.8x additional compression!)
-# Combined: 80.8 MB → 3.8 MB (21.3x total)</code></pre>
-                <p class="small-text highlight">✅ Biggest single jump: 16.8x improvement from zstd!</p>
+            <section>
+                <h2>Phase 3: CBOR + zstd Results</h2>
+                <div class="box">
+                    <h4>General-Purpose Compression Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 3.8 MB</p>
+                    <p><strong>Compression:</strong> 21.3x</p>
+                    <p><strong>Improvement:</strong> Δ16.8x from Phase 2</p>
+                </div>
+                <p class="small-text highlight" style="text-align: center;">✅ Biggest single jump: 16.8x improvement from zstd!</p>
             </section>
 
             <!-- Phase 4: Binary Table -->
             <section>
-                <h2>Phase 4: Binary Table with String Deduplication (2.8 MB, 28.9x, Δ1.36x)</h2>
+                <h2>Phase 4: Binary Table with String Deduplication</h2>
                 <div class="box">
                     <h4>Key Insight: String Deduplication + Binary Table Format</h4>
                 </div>
@@ -304,9 +341,21 @@ Binary rows (fixed-size records):
 # - Small integer IDs compress better than back-references to strings</code></pre>
             </section>
 
+            <section>
+                <h2>Phase 4: Binary Table Results</h2>
+                <div class="box">
+                    <h4>String Deduplication Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 2.8 MB</p>
+                    <p><strong>Compression:</strong> 28.9x</p>
+                    <p><strong>Improvement:</strong> Δ1.36x from Phase 3</p>
+                </div>
+            </section>
+
             <!-- Phase 5: Columnar Storage -->
             <section>
-                <h2>Phase 5: Columnar Storage (2.0 MB, 40.4x, Δ1.40x)</h2>
+                <h2>Phase 5: Columnar Storage</h2>
                 <div class="box">
                     <h4>Key Insight: Group Similar Data</h4>
                 </div>
@@ -320,23 +369,40 @@ row3: {label_ids: [1, 2], ts: 1120, val: 72.5}</code></pre>
                     </div>
                     <div>
                         <h4>Column-oriented (After)</h4>
-                        <pre><code class="language-python">label_ids: [[1, 2], [1, 2], [1, 2]]
-timestamps: [1000, 1060, 1120]
-values:     [72.3, 72.4, 72.5]</code></pre>
-                        <p class="small-text">Similar values together = better compression</p>
+                        <pre><code class="language-python">series_metadata: {
+  "0": {name: "cpu_usage", labels: {host: "web1"}},
+  "1": {name: "cpu_usage", labels: {host: "web2"}}
+}
+series_data: {
+  "0": {timestamps: [...], values: [...]},
+  "1": {timestamps: [...], values: [...]}
+}</code></pre>
+                        <p class="small-text">Each series stored consecutively</p>
                     </div>
                 </div>
-                <p class="small-text" style="margin-top: 20px;"><strong>Why it works:</strong></p>
+                <p class="small-text" style="margin-top: 20px;"><strong>Critical transformation:</strong></p>
                 <ul class="small-text">
+                    <li><strong>Store each series consecutively</strong> - all timestamps and values for one series together</li>
                     <li>Similar values together → better back reference patterns</li>
-                    <li>All string IDs together → run-length encoding finds patterns</li>
                 </ul>
-                <p class="small-text highlight">✅ 40.4x compression - columnar layout unlocks specialized algorithms</p>
+            </section>
+
+            <section>
+                <h2>Phase 5: Columnar Storage Results</h2>
+                <div class="box">
+                    <h4>Columnar Layout Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 2.0 MB</p>
+                    <p><strong>Compression:</strong> 40.4x</p>
+                    <p><strong>Improvement:</strong> Δ1.40x from Phase 4</p>
+                </div>
+                <p class="small-text highlight" style="text-align: center;">✅ 40.4x compression - columnar layout unlocks specialized algorithms</p>
             </section>
 
             <!-- Phase 6: Pattern-Aware Algorithms -->
             <section>
-                <h2>Phase 6: Pattern-Aware Algorithms (1.0 MB, 79.7x, Δ1.97x)</h2>
+                <h2>Phase 6: Pattern-Aware Algorithms</h2>
                 <div class="box danger">
                     <h4>The Breakthrough: Understand the Data!</h4>
                 </div>
@@ -346,9 +412,6 @@ values:     [72.3, 72.4, 72.5]</code></pre>
                     <li><strong>Delta encoding:</strong> Base value + deltas to previous value</li>
                     <li><strong>Many more:</strong>Near constant, Power-of-2, integer/fraction split, periodic templates, sparse storage</li> 
                 </ul>
-                <p class="highlight" style="margin-top: 20px; text-align: center;">
-                    Result: 3.19 bytes per data point (vs 8 bytes original) - 79.7x compression!
-                </p>
             </section>
 
             <section>
@@ -370,6 +433,81 @@ deltas = [60, 60, 60, 60]
 delta_deltas = [0, 0, 0]  # All zeros!
 # Run-length encode: "60 repeated 4 times"
 # Result: 12 bytes (3x compression!)</code></pre>
+            </section>
+
+            <section>
+                <h2>Phase 6: Pattern-Aware Results</h2>
+                <div class="box">
+                    <h4>Pattern Detection Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 1.0 MB</p>
+                    <p><strong>Compression:</strong> 79.7x</p>
+                    <p><strong>Improvement:</strong> Δ1.97x from Phase 5</p>
+                    <p><strong>Bytes per point:</strong> 3.19 bytes (vs 8 bytes original)</p>
+                </div>
+                <p class="highlight" style="margin-top: 20px; text-align: center;">
+                    Result: 79.7x compression!
+                </p>
+            </section>
+
+            <section>
+                <h2>Metrics: Compression Journey</h2>
+                <table style="font-size: 0.7em;">
+                    <thead>
+                        <tr>
+                            <th>Phase</th>
+                            <th>Technique</th>
+                            <th>Size</th>
+                            <th>Ratio</th>
+                            <th>What Changed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td>NDJSON</td>
+                            <td class="danger">80.8 MB</td>
+                            <td>1.0x</td>
+                            <td>None (baseline)</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>CBOR</td>
+                            <td class="danger">63.9 MB</td>
+                            <td>1.26x</td>
+                            <td>Binary encoding</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>CBOR + zstd</td>
+                            <td class="warning">3.8 MB</td>
+                            <td class="success">21.3x</td>
+                            <td>General compression</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td>Binary Table</td>
+                            <td class="warning">2.8 MB</td>
+                            <td class="success">28.9x</td>
+                            <td>Deduplicate labels</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td>Columnar</td>
+                            <td class="success">2.0 MB</td>
+                            <td class="success">40.4x</td>
+                            <td>Store series consecutively</td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td>Pattern-Aware</td>
+                            <td class="success">1.0 MB</td>
+                            <td class="success">79.7x</td>
+                            <td>Delta/RLE algorithms</td>
+                        </tr>
+                    </tbody>
+                </table>
             </section>
 
             <section>
@@ -422,7 +560,7 @@ delta_deltas = [0, 0, 0]  # All zeros!
 
             <!-- Phase 1: Plain Text -->
             <section>
-                <h2>Phase 1: Plain Text Baseline (72.7 MB, 1.0x)</h2>
+                <h2>Phase 1: Plain Text Baseline</h2>
                 <div class="box">
                     <h4>Raw OpenSSH log files</h4>
                 </div>
@@ -444,9 +582,20 @@ Dec 10 07:02:47 LabSZ sshd[24203]: Connection closed by 212.47.254.145 [preauth]
                 </ul>
             </section>
 
+            <section>
+                <h2>Phase 1: Plain Text Results</h2>
+                <div class="box">
+                    <h4>Baseline Metrics</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 72.7 MB</p>
+                    <p><strong>Compression:</strong> 1.0x (baseline)</p>
+                </div>
+            </section>
+
             <!-- Phase 2: zstd -->
             <section>
-                <h2>Phase 2: Plain Text + zstd (3.0 MB, 24.5x, Δ24.5x)</h2>
+                <h2>Phase 2: Plain Text + zstd</h2>
                 <div class="box">
                     <h4>General compression finds patterns automatically</h4>
                 </div>
@@ -463,17 +612,26 @@ Pattern 3: "Failed password for root from " (appears 140k times)
 
 Pattern 4: "authentication failure" (appears 153k times)
   → Dictionary entry
+</code></pre>
+            </section>
 
-# Compression result:
-Original: 72,746,715 bytes
-Compressed: 2,968,978 bytes
-Ratio: 24.5x</code></pre>
-                <p class="small-text highlight">✅ 24.5x with zero domain knowledge - impressive!</p>
+            <section>
+                <h2>Phase 2: Plain Text + zstd Results</h2>
+                <div class="box">
+                    <h4>General Compression Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Original:</strong> 72.7 MB</p>
+                    <p><strong>Compressed:</strong> 3.0 MB</p>
+                    <p><strong>Compression:</strong> 24.5x</p>
+                    <p><strong>Improvement:</strong> Δ24.5x from Phase 1</p>
+                </div>
+                <p class="small-text highlight" style="text-align: center;">✅ 24.5x with zero domain knowledge - impressive!</p>
             </section>
 
             <!-- Phase 3: Template Extraction -->
             <section>
-                <h2>Phase 3: Template Extraction (2.0 MB, 36.3x, Δ1.48x)</h2>
+                <h2>Phase 3: Template Extraction</h2>
                 <pre><code class="language-python"># Original log lines (3 examples):
 Dec 10 06:55:48 LabSZ sshd[24200]: Failed password for root from 173.234.31.186 port 38926 ssh2
 Dec 10 07:14:32 LabSZ sshd[24205]: Failed password for root from 218.65.30.43 port 54913 ssh2
@@ -494,6 +652,18 @@ Line-to-template mapping: [16, 16, 16, 16, 16, ...]  # Just template IDs!
 Template storage: 81 bytes × 1 = 81 bytes
 Variables: 139,818 × (time + pid + IP + port)
 </code></pre>
+            </section>
+
+            <section>
+                <h2>Phase 3: Template Extraction Results</h2>
+                <div class="box">
+                    <h4>Template-Based Compression Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 2.0 MB</p>
+                    <p><strong>Compression:</strong> 36.3x</p>
+                    <p><strong>Improvement:</strong> Δ1.48x from Phase 2</p>
+                </div>
             </section>
 
             <section>
@@ -553,7 +723,7 @@ Variables: 139,818 × (time + pid + IP + port)
 
             <!-- Phase 4: Variable Encoding -->
             <section>
-                <h2>Phase 4: Type-Aware Variable Encoding (1.9 MB, 38.7x, Δ1.07x)</h2>
+                <h2>Phase 4: Type-Aware Variable Encoding</h2>
                 <div class="box">
                     <h4>Compress each variable type optimally</h4>
                 </div>
@@ -571,9 +741,21 @@ Integer encoding + Dictionary:
 </code></pre>
             </section>
 
+            <section>
+                <h2>Phase 4: Type-Aware Variable Results</h2>
+                <div class="box">
+                    <h4>Variable Encoding Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 1.9 MB</p>
+                    <p><strong>Compression:</strong> 38.7x</p>
+                    <p><strong>Improvement:</strong> Δ1.07x from Phase 3</p>
+                </div>
+            </section>
+
             <!-- Phase 5: Smart Row Ordering -->
             <section>
-                <h2>Phase 5: Smart Row Ordering (1.9 MB, 38.7x, Δ1.00x)</h2>
+                <h2>Phase 5: Smart Row Ordering</h2>
                 <pre><code class="language-python"># Strategy: Group by template, sort within groups by time
 # Before (chronological, interleaved):
 Line 1000: Template 16 "Failed password for root"
@@ -599,6 +781,18 @@ Template 6: "Connection closed" × 68,958 lines
 # - zstd finds longer matching patterns</code></pre>
             </section>
 
+            <section>
+                <h2>Phase 5: Smart Row Ordering Results</h2>
+                <div class="box">
+                    <h4>Row Ordering Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 1.9 MB</p>
+                    <p><strong>Compression:</strong> 38.7x</p>
+                    <p><strong>Improvement:</strong> Δ1.00x from Phase 4</p>
+                </div>
+            </section>
+
             <!-- Phase 5: The Order Preservation Cost -->
             <section>
                 <h2>Phase 5: Why No Improvement?</h2>
@@ -620,7 +814,7 @@ Template 6: "Connection closed" × 68,958 lines
 
             <!-- Phase 6: Drop Order Preservation -->
             <section>
-                <h2>Phase 6: Drop Order Preservation (1.77 MB, 41.2x, Δ1.07x)</h2>
+                <h2>Phase 6: Drop Order Preservation</h2>
                 <div class="box">
                     <h4>Remove line ordering for maximum compression</h4>
                 </div>
@@ -634,12 +828,19 @@ Template 6: "Connection closed" × 68,958 lines
   "var_ip_0": [...],
   "order_mapping_delta": [0, 0, 2, 1, 58, 0, ...] # just drop this column
 }
+</code></pre>
+            </section>
 
-# Benefits:
-# - No need to store 655,147 line-to-template mappings
-# - Variables perfectly grouped by template
-# - Maximum compression locality
-# - Additional 1.07x improvement</code></pre>
+            <section>
+                <h2>Phase 6: Drop Order Results</h2>
+                <div class="box">
+                    <h4>Order Removal Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 1.77 MB</p>
+                    <p><strong>Compression:</strong> 41.2x</p>
+                    <p><strong>Improvement:</strong> Δ1.07x from Phase 5</p>
+                </div>
             </section>
 
             <!-- Comparison slide -->
