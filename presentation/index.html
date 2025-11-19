@@ -356,35 +356,36 @@ Binary rows (fixed-size records):
             <!-- Phase 5: Columnar Storage -->
             <section>
                 <h2>Phase 5: Columnar Storage</h2>
-                <div class="box">
-                    <h4>Key Insight: Group Similar Data</h4>
-                </div>
-                <div class="two-column">
                     <div>
                         <h4>Row-oriented (Before)</h4>
-                        <pre><code class="language-python">row1: {label_ids: [1, 2], ts: 1000, val: 72.3}
-row2: {label_ids: [1, 2], ts: 1060, val: 72.4}
-row3: {label_ids: [1, 2], ts: 1120, val: 72.5}</code></pre>
-                        <p class="small-text">Mixed types, poor compression</p>
+                        <pre><code class="language-json">{
+  "strings": {
+    "0": "system.cpu.user",
+    "1": "server-01",
+    "2": "us-west-1",
+    "3": "system.memory"
+  },
+  "series_data": {
+    {"metric_name": 0, "label_ids": [1, 2], "timestamp": 1000, "value": 72.3},
+    {"metric_name": 3, "label_ids": [1, 2], "timestamp": 1060, "value": 72.4},
+  }
+}</code></pre>
                     </div>
                     <div>
                         <h4>Column-oriented (After)</h4>
-                        <pre><code class="language-python">series_metadata: {
-  "0": {name: "cpu_usage", labels: {host: "web1"}},
-  "1": {name: "cpu_usage", labels: {host: "web2"}}
-}
-series_data: {
-  "0": {timestamps: [...], values: [...]},
-  "1": {timestamps: [...], values: [...]}
+                        <pre><code class="language-json">{
+  "strings": {
+    "0": "system.cpu.user",
+    "1": "server-01",
+    "2": "us-west-1",
+    "3": "system.memory"
+  },
+  "series_data": {
+    "0": {"metric_name": 0, "label_ids": [1, 2], "timestamps": [...], "values": [...]},
+    "1": {"metric_name": 3, "label_ids": [1, 2], "timestamps": [...], "values": [...]}
+  }
 }</code></pre>
-                        <p class="small-text">Each series stored consecutively</p>
                     </div>
-                </div>
-                <p class="small-text" style="margin-top: 20px;"><strong>Critical transformation:</strong></p>
-                <ul class="small-text">
-                    <li><strong>Store each series consecutively</strong> - all timestamps and values for one series together</li>
-                    <li>Similar values together → better back reference patterns</li>
-                </ul>
             </section>
 
             <section>
@@ -539,25 +540,6 @@ delta_deltas = [0, 0, 0]  # All zeros!
                 <p>📝 (Un)structured Text Compression</p>
             </section>
 
-            <section>
-                <h2>What Are Logs?</h2>
-                <div class="box">
-                    <h4>Semi-structured text event records</h4>
-                </div>
-                <pre><code class="language-log">[Thu Jun 09 06:07:04 2005] [notice] LDAP: Built with OpenLDAP LDAP SDK
-[Thu Jun 09 06:07:05 2005] [error] env.createBean2(): Factory error creating vm
-[Thu Jun 09 06:07:19 2005] [notice] jk2_init() Found child 2330 in scoreboard slot 0
-[Thu Jun 09 06:07:20 2005] [error] [client 10.0.0.153] File does not exist: /var/www/html
-[Thu Jun 09 06:07:21 2005] [error] [client 10.0.0.153] Directory index forbidden
-</code></pre>
-                <p class="small-text"><strong>Key characteristics:</strong></p>
-                <ul class="small-text">
-                    <li>Repeated templates with variable values</li>
-                    <li>Variable types: timestamps, IPs, IDs, numbers, paths</li>
-                    <li>Massive redundancy in structure</li>
-                </ul>
-            </section>
-
             <!-- Phase 1: Plain Text -->
             <section>
                 <h2>Phase 1: Plain Text Baseline</h2>
@@ -599,19 +581,20 @@ Dec 10 07:02:47 LabSZ sshd[24203]: Connection closed by 212.47.254.145 [preauth]
                 <div class="box">
                     <h4>General compression finds patterns automatically</h4>
                 </div>
-                <pre><code class="language-plaintext"># zstd dictionary learning discovers repeated patterns:
+                <pre><code class="language-plaintext"># zstd uses LZ77 back-references (sliding window):
 
-Pattern 1: "Dec 10 " (appears 655k times)
-  → Store once in dictionary, reference with 2 bytes
+Example log sequence:
+Line 1: "Dec 10 06:55:46 LabSZ sshd[24200]: Failed password for root from 173.234.31.186"
+Line 2: "Dec 10 06:55:48 LabSZ sshd[24200]: Failed password for root from 218.65.30.43"
+Line 3: "Dec 10 07:14:32 LabSZ sshd[24200]: Failed password for root from 61.174.51.214"
 
-Pattern 2: " LabSZ sshd[" (appears 655k times)
-  → Dictionary entry
+Compressed output (simplified):
+[literal: "Dec 10 06:55:46 LabSZ sshd[24200]: Failed password for root from 173.234.31.186\n"]
+[literal: "Dec 10 06:55:48 "] [back-ref: offset=80, len=54] [literal: "218.65.30.43\n"]
+[literal: "Dec 10 07:14:32 "] [back-ref: offset=160, len=54] [literal: "61.174.51.214\n"]
 
-Pattern 3: "Failed password for root from " (appears 140k times)
-  → Dictionary entry
-
-Pattern 4: "authentication failure" (appears 153k times)
-  → Dictionary entry
+# Key insight: Repeated substring "LabSZ sshd[24200]: Failed password for root from "
+# encoded as (offset, length) pairs instead of storing it 3 times
 </code></pre>
             </section>
 
@@ -635,35 +618,20 @@ Pattern 4: "authentication failure" (appears 153k times)
                 <pre><code class="language-python"># Original log lines (3 examples):
 Dec 10 06:55:48 LabSZ sshd[24200]: Failed password for root from 173.234.31.186 port 38926 ssh2
 Dec 10 07:14:32 LabSZ sshd[24205]: Failed password for root from 218.65.30.43 port 54913 ssh2
-Dec 10 08:03:17 LabSZ sshd[24220]: Failed password for root from 61.174.51.214 port 58389 ssh2
 
-# Separates into template + variables:
-Template #16: "<TIMESTAMP> LabSZ sshd[<NUM>]: Failed password for root from <IP> port <NUM> ssh2"
-
-Variables (columnar storage - again similar values together):
-  TIMESTAMP: ["Dec 10 06:55:48", "Dec 10 07:14:32", ...]
-  NUM (pid): [24200, 24205, 24220, ...]
-  IP: ["173.234.31.186", "218.65.30.43", "61.174.51.214", ...]
-  NUM (port): [38926, 54913, 58389, ...]
-
-Line-to-template mapping: [16, 16, 16, 16, 16, ...]  # Just template IDs!
-
-# This template used 139,818 times!
-Template storage: 81 bytes × 1 = 81 bytes
-Variables: 139,818 × (time + pid + IP + port)
+{
+  "templates": {
+    "16": "< TIMESTAMP > LabSZ sshd[< NUM >]: Failed password for root from < IP > port < NUM > ssh2"
+  },
+  "line_to_template": [16, 16, 16, ...],  // 139,818 entries, all "16"
+  "variables": {
+    "TIMESTAMP": ["Dec 10 06:55:48", "Dec 10 07:14:32", "Dec 10 08:03:17", ...],
+    "NUM_0": [24200, 24205, 24220, ...],     // pid
+    "IP": ["173.234.31.186", "218.65.30.43", "61.174.51.214", ...],
+    "NUM_1": [38926, 54913, 58389, ...]      // port
+  }
+}
 </code></pre>
-            </section>
-
-            <section>
-                <h2>Phase 3: Template Extraction Results</h2>
-                <div class="box">
-                    <h4>Template-Based Compression Impact</h4>
-                </div>
-                <div class="formula">
-                    <p><strong>Size:</strong> 2.0 MB</p>
-                    <p><strong>Compression:</strong> 36.3x</p>
-                    <p><strong>Improvement:</strong> Δ1.48x from Phase 2</p>
-                </div>
             </section>
 
             <section>
@@ -721,6 +689,19 @@ Variables: 139,818 × (time + pid + IP + port)
                 </div>
             </section>
 
+
+            <section>
+                <h2>Phase 3: Template Extraction Results</h2>
+                <div class="box">
+                    <h4>Template-Based Compression Impact</h4>
+                </div>
+                <div class="formula">
+                    <p><strong>Size:</strong> 2.0 MB</p>
+                    <p><strong>Compression:</strong> 36.3x</p>
+                    <p><strong>Improvement:</strong> Δ1.48x from Phase 2</p>
+                </div>
+            </section>
+
             <!-- Phase 4: Variable Encoding -->
             <section>
                 <h2>Phase 4: Type-Aware Variable Encoding</h2>
@@ -730,14 +711,12 @@ Variables: 139,818 × (time + pid + IP + port)
                 <pre><code class="language-python"># TIMESTAMP variables (655,147 occurrences):
 Raw: ["Dec 10 06:55:46", "Dec 10 06:55:46", "Dec 10 06:55:48", ...]
 Delta encoded:
-  Base: "Dec 10 06:55:46"
+  Base: 1682403746  # Epoch seconds for "Dec 10 06:55:46"
   Deltas: [0, 0, 2, 1, 58, 0, ...]  # Seconds difference
 
 # IP variables (549,454 occurrences):
 Raw: ["173.234.31.186", "173.234.31.186", "212.47.254.145", ...]
-Integer encoding + Dictionary:
   Convert to uint32: [2910973370, 2910973370, 3561263233, ...]
-  Dictionary + indices for repeated IPs
 </code></pre>
             </section>
 
@@ -778,7 +757,8 @@ Template 6: "Connection closed" × 68,958 lines
 # Benefits:
 # - Similar variables adjacent → better delta encoding
 # - Template IDs grouped → better RLE compression
-# - zstd finds longer matching patterns</code></pre>
+# - zstd finds longer matching patterns
+# - Note: We drop original line order to maximize compression</code></pre>
             </section>
 
             <section>
@@ -787,59 +767,9 @@ Template 6: "Connection closed" × 68,958 lines
                     <h4>Row Ordering Impact</h4>
                 </div>
                 <div class="formula">
-                    <p><strong>Size:</strong> 1.9 MB</p>
-                    <p><strong>Compression:</strong> 38.7x</p>
-                    <p><strong>Improvement:</strong> Δ1.00x from Phase 4</p>
-                </div>
-            </section>
-
-            <!-- Phase 5: The Order Preservation Cost -->
-            <section>
-                <h2>Phase 5: Why No Improvement?</h2>
-                <div class="box danger">
-                    <h4>⚠️ Preserving original order is expensive!</h4>
-                </div>
-                
-                <h3 style="margin-top: 30px;">How Order Mapping Works:</h3>
-                <ul>
-                    <li><strong>Raw data:</strong> 655,147 uint32 indices (2.6 MB)</li>
-                    <li><strong>Delta encoding:</strong> Small deltas between reordered positions</li>
-                    <li><strong>Varint encoding:</strong> Small numbers use fewer bytes</li>
-                    <li><strong>Zstd L22:</strong> Compresses patterns in deltas</li>
-                    <li><strong>Result:</strong> 2.6 MB → 130 KB (20x compression)</li>
-                </ul>
-
-                <p style="margin-top: 30px;"><strong>Final outcome:</strong> 1.895 MB → 1.897 MB (0.999x) - essentially no change because the ordering overhead (130 KB) is offset by better template grouping compression.</p>
-            </section>
-
-            <!-- Phase 6: Drop Order Preservation -->
-            <section>
-                <h2>Phase 6: Drop Order Preservation</h2>
-                <div class="box">
-                    <h4>Remove line ordering for maximum compression</h4>
-                </div>
-                <pre><code class="language-python">{
-  "templates": [...],
-  # 655,147 entries each
-  "line_to_template": [16, 16, 16, 6, 21, 16, ...], 
-  "var_time_0": [...],
-  "var_number_0": [...],
-  "var_number_1": [...],
-  "var_ip_0": [...],
-  "order_mapping_delta": [0, 0, 2, 1, 58, 0, ...] # just drop this column
-}
-</code></pre>
-            </section>
-
-            <section>
-                <h2>Phase 6: Drop Order Results</h2>
-                <div class="box">
-                    <h4>Order Removal Impact</h4>
-                </div>
-                <div class="formula">
                     <p><strong>Size:</strong> 1.77 MB</p>
                     <p><strong>Compression:</strong> 41.2x</p>
-                    <p><strong>Improvement:</strong> Δ1.07x from Phase 5</p>
+                    <p><strong>Improvement:</strong> Δ1.07x from Phase 4</p>
                 </div>
             </section>
 
@@ -888,72 +818,12 @@ Template 6: "Connection closed" × 68,958 lines
                         <tr>
                             <td>5</td>
                             <td>Smart ordering</td>
-                            <td class="success">1.9 MB</td>
-                            <td class="success">38.7x</td>
-                            <td>Group by template</td>
-                        </tr>
-                        <tr>
-                            <td>6</td>
-                            <td>No ordering</td>
                             <td class="success">1.77 MB</td>
                             <td class="success">41.2x</td>
-                            <td>Drop line numbers</td>
+                            <td>Group by template</td>
                         </tr>
                     </tbody>
                 </table>
-            </section>
-
-            <section>
-                <h2>Logs: Dataset Comparison</h2>
-                <table style="font-size: 0.6em;">
-                    <thead>
-                        <tr>
-                            <th>Dataset</th>
-                            <th>Lines</th>
-                            <th>Size</th>
-                            <th>Templates</th>
-                            <th>Reuse</th>
-                            <th>Final Ratio</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Apache (small)</td>
-                            <td>56,482</td>
-                            <td>5.1 MB</td>
-                            <td>38</td>
-                            <td class="success">1,486x</td>
-                            <td class="success">50.7x</td>
-                        </tr>
-                        <tr>
-                            <td>HDFS (big)</td>
-                            <td>74,859</td>
-                            <td>10.5 MB</td>
-                            <td>18</td>
-                            <td class="success">4,159x</td>
-                            <td class="warning">24.2x</td>
-                        </tr>
-                        <tr>
-                            <td>OpenSSH (huge)</td>
-                            <td>655,147</td>
-                            <td>72.7 MB</td>
-                            <td>5,669</td>
-                            <td class="warning">116x</td>
-                            <td class="success">41.2x</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div class="box" style="margin-top: 20px;">
-                    <p class="small-text"><strong>Why is HDFS worse despite 4,159x template reuse?</strong></p>
-                    <ul class="small-text">
-                        <li><strong>High-cardinality variables:</strong> 74,859 unique block identifiers (296 KB encoded)</li>
-                        <li><strong>Lots of numbers:</strong> 141,631 numeric values (566 KB)</li>
-                        <li><strong>Many unique paths:</strong> 58,747 file paths (1.22 MB)</li>
-                        <li><strong>Even with timestamp delta encoding:</strong> 74,859 timestamps → 145 KB (6.7x, but still significant)</li>
-                        <li><strong>Total variable overhead:</strong> 3.9 MB uncompressed (despite only 18 templates!)</li>
-                    </ul>
-                    <p class="small-text"><strong>Key insight:</strong> Template reuse alone isn't enough - variable types, cardinality, and uniqueness dominate!</p>
-                </div>
             </section>
 
             <!-- PART 4: REALITY CHECK -->
