@@ -74,6 +74,58 @@
             margin: 10px 0;
             font-family: monospace;
         }
+        .chart-container {
+            margin: 30px auto;
+            max-width: 900px;
+        }
+        .bar-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .bar-label {
+            min-width: 200px;
+            width: 200px;
+            font-size: 0.85em;
+            text-align: right;
+            padding-right: 15px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .bar-wrapper {
+            flex: 1;
+            background: #2a2a2a;
+            border-radius: 5px;
+            height: 40px;
+            position: relative;
+            overflow: visible;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 0.8em;
+            font-weight: bold;
+            transition: width 1s ease-out;
+            white-space: nowrap;
+            overflow: visible;
+        }
+        .bar-value {
+            min-width: 120px;
+            width: 120px;
+            font-size: 0.85em;
+            text-align: left;
+            padding-left: 15px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -148,37 +200,6 @@
                 </div>
             </section>
 
-            <section>
-                <h2>📊 Overview</h2>
-                <table class="comparison-table">
-                    <thead>
-                        <tr>
-                            <th>Signal Type</th>
-                            <th>Starting Size</th>
-                            <th>Key Challenge</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>📊 Metrics</td>
-                            <td>80.8 MB NDJSON</td>
-                            <td>Temporal patterns in numbers</td>
-                        </tr>
-                        <tr>
-                            <td>📝 Logs</td>
-                            <td>72.7 MB Plain Text</td>
-                            <td>Repeated structure with variables</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <p class="small-text" style="text-align: center; margin-top: 30px;">
-                    Each uses different strategies tailored to data characteristics
-                </p>
-                <p class="small-text" style="text-align: center; margin-top: 20px;">
-                    <em>Note: Distributed traces compression covered in separate presentation (traces.html)</em>
-                </p>
-            </section>
-
             <!-- PART 2: METRICS -->
             <section class="center">
                 <h1>Part 2: Metrics</h1>
@@ -206,6 +227,15 @@
                     <li>Values change slowly (temporal locality)</li>
                     <li>Labels repeat across many series</li>
                 </ul>
+            </section>
+
+            <section>
+                <h2>The Dataset</h2>
+                <div class="box">
+                    <h4>Westermo monitoring data</h4>
+                    <p class="small-text">500k data points across 72 time series</p>
+                </div>
+                <img src="metrics_image.png" alt="Metrics visualization" style="max-width: 80%; margin: 20px auto; display: block;">
             </section>
 
             <!-- Phase 1: NDJSON Baseline -->
@@ -454,61 +484,58 @@ delta_deltas = [0, 0, 0]  # All zeros!
 
             <section>
                 <h2>Metrics: Compression Journey</h2>
-                <table style="font-size: 0.7em;">
-                    <thead>
-                        <tr>
-                            <th>Phase</th>
-                            <th>Technique</th>
-                            <th>Size</th>
-                            <th>Ratio</th>
-                            <th>What Changed</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>1</td>
-                            <td>NDJSON</td>
-                            <td class="danger">80.8 MB</td>
-                            <td>1.0x</td>
-                            <td>None (baseline)</td>
-                        </tr>
-                        <tr>
-                            <td>2</td>
-                            <td>CBOR</td>
-                            <td class="danger">63.9 MB</td>
-                            <td>1.26x</td>
-                            <td>Binary encoding</td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td>CBOR + zstd</td>
-                            <td class="warning">3.8 MB</td>
-                            <td class="success">21.3x</td>
-                            <td>General compression</td>
-                        </tr>
-                        <tr>
-                            <td>4</td>
-                            <td>Binary Table</td>
-                            <td class="warning">2.8 MB</td>
-                            <td class="success">28.9x</td>
-                            <td>Deduplicate labels</td>
-                        </tr>
-                        <tr>
-                            <td>5</td>
-                            <td>Columnar</td>
-                            <td class="success">2.0 MB</td>
-                            <td class="success">40.4x</td>
-                            <td>Store series consecutively</td>
-                        </tr>
-                        <tr>
-                            <td>6</td>
-                            <td>Pattern-Aware</td>
-                            <td class="success">1.0 MB</td>
-                            <td class="success">79.7x</td>
-                            <td>Delta/RLE algorithms</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="chart-container">
+                    <div class="bar-chart">
+                        <div class="bar-row">
+                            <div class="bar-label">NDJSON</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 1.25%; background: #d9534f;">1.0x</div>
+                            </div>
+                            <div class="bar-value">80.8 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">CBOR</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 1.58%; background: #d9534f;">1.26x</div>
+                            </div>
+                            <div class="bar-value">63.9 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">+ zstd</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 26.7%; background: #f0ad4e;">21.3x</div>
+                            </div>
+                            <div class="bar-value">3.8 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">Binary Table</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 36.3%; background: #f0ad4e;">28.9x</div>
+                            </div>
+                            <div class="bar-value">2.8 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">Columnar</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 50.7%; background: #5cb85c;">40.4x</div>
+                            </div>
+                            <div class="bar-value">2.0 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">Pattern-Aware</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 100%; background: #5cb85c;">79.7x</div>
+                            </div>
+                            <div class="bar-value">1.0 MB</div>
+                        </div>
+                    </div>
+                    <p class="small-text" style="text-align: center; margin-top: 20px;">
+                        <span class="highlight">1x</span> (JSON) → 
+                        <span class="highlight">21x</span> (+ zstd) → 
+                        <span class="highlight">40x</span> (+ columnar) → 
+                        <span class="highlight">80x</span> (+ patterns)
+                    </p>
+                </div>
             </section>
 
             <section>
@@ -540,6 +567,18 @@ delta_deltas = [0, 0, 0]  # All zeros!
                 <p>📝 (Un)structured Text Compression</p>
             </section>
 
+            <section>
+                <h2>The Dataset</h2>
+                <div class="box">
+                    <h4>OpenSSH authentication logs (Loghub)</h4>
+                    <p class="small-text">655k log lines</p>
+                </div>
+                <pre><code class="language-log">Dec 10 06:55:46 LabSZ sshd[24200]: Failed password for root from 173.234.31.186 port 38926 ssh2
+Dec 10 06:55:48 LabSZ sshd[24201]: Invalid user admin from 192.168.1.100
+Dec 10 07:02:47 LabSZ sshd[24203]: Connection closed by 212.47.254.145 [preauth]
+</code></pre>
+            </section>
+
             <!-- Phase 1: Plain Text -->
             <section>
                 <h2>Phase 1: Plain Text Baseline</h2>
@@ -557,7 +596,7 @@ Dec 10 07:02:47 LabSZ sshd[24203]: Connection closed by 212.47.254.145 [preauth]
 </code></pre>
                 <p class="small-text"><strong>Observations:</strong></p>
                 <ul class="small-text">
-                    <li>655,147 lines, each ~110 bytes average</li>
+                    <li>each ~110 bytes per line average</li>
                     <li>Repeated structure: "timestamp hostname daemon[pid]: message"</li>
                     <li>Same message patterns with different variables</li>
                     <li>"Failed password for root" appears 139,818 times!</li>
@@ -776,54 +815,48 @@ Template 6: "Connection closed" × 68,958 lines
             <!-- Comparison slide -->
             <section>
                 <h2>Logs: Compression Comparison</h2>
-                <table style="font-size: 0.6em;">
-                    <thead>
-                        <tr>
-                            <th>Phase</th>
-                            <th>Format</th>
-                            <th>Size</th>
-                            <th>Ratio</th>
-                            <th>Key Technique</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>1</td>
-                            <td>Plain Text</td>
-                            <td class="danger">72.7 MB</td>
-                            <td>1.0x</td>
-                            <td>None (baseline)</td>
-                        </tr>
-                        <tr>
-                            <td>2</td>
-                            <td>Plain + zstd</td>
-                            <td class="warning">3.0 MB</td>
-                            <td class="success">24.5x</td>
-                            <td>Pattern dictionary</td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td>Templates + zstd</td>
-                            <td class="warning">2.0 MB</td>
-                            <td class="success">36.3x</td>
-                            <td>CLP template extraction</td>
-                        </tr>
-                        <tr>
-                            <td>4</td>
-                            <td>Type-aware vars</td>
-                            <td class="success">1.9 MB</td>
-                            <td class="success">38.7x</td>
-                            <td>Delta/dict per type</td>
-                        </tr>
-                        <tr>
-                            <td>5</td>
-                            <td>Smart ordering</td>
-                            <td class="success">1.77 MB</td>
-                            <td class="success">41.2x</td>
-                            <td>Group by template</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="chart-container">
+                    <div class="bar-chart">
+                        <div class="bar-row">
+                            <div class="bar-label">Plain Text</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 2.4%; background: #d9534f;">1.0x</div>
+                            </div>
+                            <div class="bar-value">72.7 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">+ zstd</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 59.5%; background: #f0ad4e;">24.5x</div>
+                            </div>
+                            <div class="bar-value">3.0 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">Templates</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 88.1%; background: #f0ad4e;">36.3x</div>
+                            </div>
+                            <div class="bar-value">2.0 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">Type-aware</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 93.9%; background: #5cb85c;">38.7x</div>
+                            </div>
+                            <div class="bar-value">1.9 MB</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="bar-label">Ordering</div>
+                            <div class="bar-wrapper">
+                                <div class="bar-fill" style="width: 100%; background: #5cb85c;">41.2x</div>
+                            </div>
+                            <div class="bar-value">1.77 MB</div>
+                        </div>
+                    </div>
+                    <p class="small-text" style="text-align: center; margin-top: 20px;">
+                        Each phase builds on previous techniques for incremental gains
+                    </p>
+                </div>
             </section>
 
             <!-- PART 4: REALITY CHECK -->
