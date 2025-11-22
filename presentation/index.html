@@ -6,8 +6,8 @@
     <title>Squeezed Signals: Observability Data Compression</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reset.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/black.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/monokai.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/white.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/github.css">
     <style>
         .reveal h1, .reveal h2, .reveal h3 {
             text-transform: none;
@@ -68,7 +68,7 @@
             font-size: 0.8em;
         }
         .formula {
-            background: #1a1a1a;
+            background: #f5f5f5;
             padding: 10px;
             border-left: 4px solid #42affa;
             margin: 10px 0;
@@ -99,7 +99,7 @@
         }
         .bar-wrapper {
             flex: 1;
-            background: #2a2a2a;
+            background: #e8e8e8;
             border-radius: 5px;
             height: 40px;
             position: relative;
@@ -450,20 +450,93 @@ Binary rows (fixed-size records):
                 <div class="box">
                     <h4>Store Differences, Not Absolute Values</h4>
                 </div>
-                <pre><code class="language-python"># Regular timestamps:
-timestamps = [1000, 1060, 1120, 1180, 1240]
-# Each: 8 bytes = 40 bytes total
+                <div style="margin: 20px 0;">
+                    <p class="small-text"><strong>Example: CPU usage metrics (collected every 10 seconds)</strong></p>
+                    <div style="display: flex; gap: 30px; margin-top: 20px;">
+                        <div style="flex: 1;">
+                            <p class="small-text" style="margin-bottom: 10px;"><strong>Original Timestamps</strong> (8 bytes each = 72 bytes)</p>
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 0.75em;">
+                                <div>1701234567000</div>
+                                <div>1701234577000</div>
+                                <div>1701234587000</div>
+                                <div>1701234597001</div>
+                                <div>1701234607000</div>
+                                <div>1701234617000</div>
+                                <div>1701234627000</div>
+                                <div>1701234637000</div>
+                                <div>1701234647000</div>
+                            </div>
+                        </div>
+                        <div style="flex: 1;">
+                            <p class="small-text" style="margin-bottom: 10px;"><strong>Delta Encoding</strong> (base + differences)</p>
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 0.75em;">
+                                <div style="color: #5cb85c;"><strong>Base: 1701234567000</strong> (8 bytes)</div>
+                                <div>+10000 (2 bytes)</div>
+                                <div>+10000 (2 bytes)</div>
+                                <div>+10001 (2 bytes)</div>
+                                <div>+9999 (2 bytes)</div>
+                                <div>+10000 (2 bytes)</div>
+                                <div>+10000 (2 bytes)</div>
+                                <div>+10000 (2 bytes)</div>
+                                <div>+10000 (2 bytes)</div>
+                                <div style="margin-top: 10px; padding-top: 10px; border-top: 2px solid #42affa;">
+                                    <strong>Total: 24 bytes (3x smaller!)</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="small-text" style="margin-top: 15px; text-align: center;">
+                        <span class="highlight">Key insight:</span> Regular intervals = similar deltas = consistent compression!
+                    </p>
+                </div>
+            </section>
 
-# Delta encoding:
-first = 1000
-deltas = [60, 60, 60, 60]
-# first (8 bytes) + deltas (4×2 bytes) = 16 bytes
-
-# Double-delta (deltas of deltas):
-deltas = [60, 60, 60, 60]
-delta_deltas = [0, 0, 0]  # All zeros!
-# Run-length encode: "60 repeated 4 times"
-# Result: 12 bytes (3x compression!)</code></pre>
+            <section>
+                <h2>Double-Delta Encoding</h2>
+                <div class="box">
+                    <h4>When Deltas Themselves Are Similar...</h4>
+                </div>
+                <div style="margin: 20px 0;">
+                    <p class="small-text"><strong>Take the previous example's deltas and compress them further!</strong></p>
+                    <div style="display: flex; gap: 30px; margin-top: 20px;">
+                        <div style="flex: 1;">
+                            <p class="small-text" style="margin-bottom: 10px;"><strong>Delta Encoding</strong> (24 bytes)</p>
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 0.75em;">
+                                <div style="color: #5cb85c;"><strong>Base: 1701234567000</strong></div>
+                                <div>+10000</div>
+                                <div>+10000</div>
+                                <div>+10001</div>
+                                <div>+9999</div>
+                                <div>+10000</div>
+                                <div>+10000</div>
+                                <div>+10000</div>
+                                <div>+10000</div>
+                            </div>
+                        </div>
+                        <div style="flex: 1;">
+                            <p class="small-text" style="margin-bottom: 10px;"><strong>Double-Delta Encoding</strong></p>
+                            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 0.75em;">
+                                <div style="color: #5cb85c;"><strong>Base: 1701234567000</strong> (8 bytes)</div>
+                                <div style="color: #5cb85c;"><strong>First delta: +10000</strong> (2 bytes)</div>
+                                <div>0 (RLE: 5×)</div>
+                                <div>+1</div>
+                                <div>-2</div>
+                                <div>+1</div>
+                                <div>0 (RLE: 3×)</div>
+                                <div style="margin-top: 10px; padding-top: 10px; border-top: 2px solid #42affa;">
+                                    <strong>Total: ~14 bytes (5.1x smaller!)</strong>
+                                </div>
+                                <div style="margin-top: 10px; font-size: 0.9em;">
+                                    Most delta-of-deltas are 0!<br/>
+                                    → Run-length encoding compresses these runs
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="small-text" style="margin-top: 15px; text-align: center;">
+                        <span class="highlight">Pattern stacking:</span> Each compression technique amplifies the next!
+                    </p>
+                </div>
             </section>
 
             <section>
@@ -660,14 +733,15 @@ Dec 10 07:14:32 LabSZ sshd[24205]: Failed password for root from 218.65.30.43 po
 
 {
   "templates": {
-    "16": "< TIMESTAMP > LabSZ sshd[< NUM >]: Failed password for root from < IP > port < NUM > ssh2"
+    "16": "< TIMESTAMP > LabSZ sshd[< NUM >]: Failed password for root from < IP > port < NUM > ssh2",
+    ...
   },
-  "line_to_template": [16, 16, 16, ...],  // 139,818 entries, all "16"
+  "line_to_template": [16, 16, 37, ...],
   "variables": {
     "TIMESTAMP": ["Dec 10 06:55:48", "Dec 10 07:14:32", "Dec 10 08:03:17", ...],
-    "NUM_0": [24200, 24205, 24220, ...],     // pid
-    "IP": ["173.234.31.186", "218.65.30.43", "61.174.51.214", ...],
-    "NUM_1": [38926, 54913, 58389, ...]      // port
+    "NUM_0": [24200, 24205, 24220, ...],
+    "IP_0": ["173.234.31.186", "218.65.30.43", "61.174.51.214", ...],
+    "NUM_1": [38926, 54913, 58389, ...]      //
   }
 }
 </code></pre>

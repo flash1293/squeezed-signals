@@ -1,7 +1,5 @@
 # Squeezed Signals: The Evolution of Observability Data Storage
 
-⚠️ Still in progress, don't trust anything this project says yet ⚠️
-
 This repository demonstrates the progressive optimization of observability data storage across **metrics**, **traces**, and **logs**.
 
 **📊 [View the presentation](https://raw.githack.com/flash1293/squeezed-signals/main/presentation/index.html)**
